@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import { Icons } from '../components/Icons';
 import GestionUtilisateurs from './GestionUtilisateurs';
 import Themes from './Themes';
 import Documents from './Documents';
+import Notifications from './Notifications';
+import Parametres from './Parametres';
+import Bibliotheque from './Bibliotheque';
 
 const menuItems = {
   superadmin: [
@@ -12,14 +15,18 @@ const menuItems = {
     { label: 'Utilisateurs', icon: Icons.user, key: 'users' },
     { label: 'Thèmes', icon: Icons.theme, key: 'themes' },
     { label: 'Mémoires', icon: Icons.document, key: 'documents' },
+    { label: 'Bibliothèque', icon: Icons.document, key: 'bibliotheque' },
     { label: 'Notifications', icon: Icons.bell, key: 'notifications' },
+    { label: 'Paramètres', icon: Icons.shield, key: 'parametres' },
   ],
   directeur: [
     { label: 'Tableau de bord', icon: Icons.home, key: 'home' },
     { label: 'Utilisateurs', icon: Icons.user, key: 'users' },
-    { label: 'Validations', icon: Icons.check, key: 'themes' },
+    { label: 'Validations thèmes', icon: Icons.check, key: 'themes' },
     { label: 'Mémoires', icon: Icons.document, key: 'documents' },
+    { label: 'Bibliothèque', icon: Icons.document, key: 'bibliotheque' },
     { label: 'Notifications', icon: Icons.bell, key: 'notifications' },
+    { label: 'Paramètres', icon: Icons.shield, key: 'parametres' },
   ],
   chef: [
     { label: 'Tableau de bord', icon: Icons.home, key: 'home' },
@@ -46,16 +53,28 @@ export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [active, setActive] = useState('home');
   const [collapsed, setCollapsed] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
+
+  const fetchUnread = useCallback(() => {
+    api.get('/notifications/').then(res => {
+      setUnreadCount(res.data.filter(n => !n.lu).length);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.get('/users/me/')
       .then(res => setUser(res.data))
-      .catch(() => {
-        localStorage.clear();
-        navigate('/login');
-      });
+      .catch(() => { localStorage.clear(); navigate('/login'); });
   }, [navigate]);
+
+  useEffect(() => {
+    if (user) {
+      fetchUnread();
+      const interval = setInterval(fetchUnread, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user, fetchUnread]);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -93,15 +112,17 @@ export default function Dashboard() {
           {menu.map(item => (
             <button
               key={item.key}
-              onClick={() => setActive(item.key)}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition
-                ${active === item.key
-                  ? 'bg-sky-600 text-white'
-                  : 'text-gray-500 hover:bg-sky-50 hover:text-sky-700'
-                }`}
+              onClick={() => { setActive(item.key); if (item.key === 'notifications') fetchUnread(); }}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition relative
+                ${active === item.key ? 'bg-sky-600 text-white' : 'text-gray-500 hover:bg-sky-50 hover:text-sky-700'}`}
             >
               <div className="w-4 h-4 shrink-0">{item.icon}</div>
               {!collapsed && <span className="truncate font-medium">{item.label}</span>}
+              {item.key === 'notifications' && unreadCount > 0 && (
+                <span className={`ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full ${active === item.key ? 'bg-white text-sky-600' : 'bg-orange-500 text-white'}`}>
+                  {unreadCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -113,10 +134,8 @@ export default function Dashboard() {
               <p className="text-gray-400 text-xs mt-0.5">{roleLabels[user.role]}</p>
             </div>
           )}
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition"
-          >
+          <button onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition">
             <div className="w-4 h-4 shrink-0">{Icons.logout}</div>
             {!collapsed && <span className="font-medium">Déconnexion</span>}
           </button>
@@ -129,6 +148,15 @@ export default function Dashboard() {
         <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6 shrink-0 shadow-sm">
           <h1 className="text-gray-800 font-semibold">{activeLabel}</h1>
           <div className="flex items-center gap-3">
+            <button onClick={() => setActive('notifications')}
+              className="relative w-8 h-8 flex items-center justify-center text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition">
+              <div className="w-4 h-4">{Icons.bell}</div>
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-orange-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
             <span className="text-xs text-sky-700 bg-sky-100 px-2.5 py-1 rounded-full font-medium">
               {roleLabels[user.role]}
             </span>
@@ -143,12 +171,9 @@ export default function Dashboard() {
           {active === 'users' && <GestionUtilisateurs currentUser={user} />}
           {active === 'themes' && <Themes currentUser={user} />}
           {active === 'documents' && <Documents currentUser={user} />}
-          {active !== 'home' && active !== 'users' && active !== 'themes' && active !== 'documents' && (
-            <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-              <div className="w-10 h-10 mb-3 text-gray-300">{Icons.document}</div>
-              <p>Section en cours de développement</p>
-            </div>
-          )}
+          {active === 'notifications' && <Notifications onRead={fetchUnread} />}
+          {active === 'parametres' && <Parametres currentUser={user} />}
+          {active === 'bibliotheque' && <Bibliotheque currentUser={user} />}
         </main>
       </div>
     </div>
@@ -156,10 +181,18 @@ export default function Dashboard() {
 }
 
 function HomeContent({ user }) {
-  const stats = [
-    { label: 'Thèmes soumis', value: '0', icon: Icons.theme, color: 'text-sky-600', bg: 'bg-sky-50 border-sky-100' },
-    { label: 'Mémoires soumis', value: '0', icon: Icons.document, color: 'text-orange-500', bg: 'bg-orange-50 border-orange-100' },
-    { label: 'Notifications', value: '0', icon: Icons.bell, color: 'text-sky-600', bg: 'bg-sky-50 border-sky-100' },
+  const [stats, setStats] = useState({ themes: 0, documents: 0, notifications: 0 });
+
+  useEffect(() => {
+    api.get('/themes/').then(res => setStats(s => ({ ...s, themes: res.data.length }))).catch(() => {});
+    api.get('/documents/').then(res => setStats(s => ({ ...s, documents: res.data.length }))).catch(() => {});
+    api.get('/notifications/').then(res => setStats(s => ({ ...s, notifications: res.data.filter(n => !n.lu).length }))).catch(() => {});
+  }, []);
+
+  const cards = [
+    { label: 'Thèmes', value: stats.themes, icon: Icons.theme, color: 'text-sky-600', bg: 'bg-sky-50 border-sky-100' },
+    { label: 'Mémoires', value: stats.documents, icon: Icons.document, color: 'text-orange-500', bg: 'bg-orange-50 border-orange-100' },
+    { label: 'Notifications non lues', value: stats.notifications, icon: Icons.bell, color: 'text-sky-600', bg: 'bg-sky-50 border-sky-100' },
   ];
 
   return (
@@ -171,7 +204,7 @@ function HomeContent({ user }) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {stats.map((s, i) => (
+        {cards.map((s, i) => (
           <div key={i} className={`${s.bg} border rounded-xl p-5`}>
             <div className="flex items-center justify-between mb-3">
               <span className="text-gray-500 text-xs font-medium uppercase tracking-wide">{s.label}</span>

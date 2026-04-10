@@ -5,8 +5,8 @@ from django.conf import settings
 class Theme(models.Model):
 
     STATUS_CHOICES = (
+        ('brouillon', 'Brouillon'),
         ('soumis', 'Soumis'),
-        ('en_attente', 'En attente'),
         ('valide', 'Validé'),
         ('rejete', 'Rejeté'),
     )
@@ -29,7 +29,7 @@ class Theme(models.Model):
     statut = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default='soumis'
+        default='brouillon'
     )
 
     date_soumission = models.DateTimeField(auto_now_add=True)

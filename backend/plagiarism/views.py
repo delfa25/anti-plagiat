@@ -5,7 +5,51 @@ from .models import TestPlagiat
 from .serializers import TestPlagiatSerializer
 from .utils import extraire_texte_pdf, calculer_taux_plagiat
 from documents.models import Document
+from themes.models import Theme
+from bibliotheque.models import Ressource
+from parametres.models import Parametre
 from notifications.models import Notification
+
+
+def get_textes_reference(exclude_document_id=None):
+    """Retourne les textes de référence : documents validés + bibliothèque active."""
+    textes = []
+
+    # Documents validés
+    docs = Document.objects.filter(statut='valide')
+    if exclude_document_id:
+        docs = docs.exclude(id=exclude_document_id)
+    for doc in docs:
+        texte = extraire_texte_pdf(doc.fichier)
+        if texte.strip():
+            textes.append(texte)
+
+    # Bibliothèque de ressources actives avec fichier
+    ressources = Ressource.objects.filter(actif=True, fichier__isnull=False)
+    for r in ressources:
+        texte = extraire_texte_pdf(r.fichier)
+        if texte.strip():
+            textes.append(texte)
+
+    return textes
+
+
+def ajouter_auto_bibliotheque(document):
+    """Ajoute automatiquement un document validé à la bibliothèque si le paramètre est activé."""
+    try:
+        p = Parametre.objects.get(cle='ajout_auto_bibliotheque')
+        if p.valeur == 'true':
+            Ressource.objects.get_or_create(
+                titre=document.titre,
+                defaults={
+                    'fichier': document.fichier,
+                    'type': 'memoire',
+                    'auteur': document.etudiant.email,
+                    'actif': True,
+                }
+            )
+    except Parametre.DoesNotExist:
+        pass
 
 
 class TestPlagiatListCreateView(generics.ListCreateAPIView):
@@ -13,7 +57,10 @@ class TestPlagiatListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return TestPlagiat.objects.filter(document__etudiant=self.request.user)
+        user = self.request.user
+        if user.role == 'etudiant':
+            return TestPlagiat.objects.filter(document__etudiant=user)
+        return TestPlagiat.objects.all()
 
 
 class TestPlagiatDetailView(generics.RetrieveAPIView):
@@ -21,25 +68,27 @@ class TestPlagiatDetailView(generics.RetrieveAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return TestPlagiat.objects.filter(document__etudiant=self.request.user)
+        user = self.request.user
+        if user.role == 'etudiant':
+            return TestPlagiat.objects.filter(document__etudiant=user)
+        return TestPlagiat.objects.all()
 
 
 class LancerTestPlagiatView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, document_id):
+        user = request.user
         try:
-            document = Document.objects.get(id=document_id, etudiant=request.user)
+            if user.role == 'etudiant':
+                document = Document.objects.get(id=document_id, etudiant=user)
+            else:
+                document = Document.objects.get(id=document_id)
         except Document.DoesNotExist:
             return Response({'error': 'Document introuvable'}, status=status.HTTP_404_NOT_FOUND)
 
-        autres_documents = Document.objects.exclude(id=document_id)
-        textes_existants = []
-
-        for doc in autres_documents:
-            texte = extraire_texte_pdf(doc.fichier)
-            if texte.strip():
-                textes_existants.append(texte)
+        # Comparer avec documents validés + bibliothèque
+        textes_existants = get_textes_reference(exclude_document_id=document_id)
 
         texte_nouveau = extraire_texte_pdf(document.fichier)
         taux = calculer_taux_plagiat(texte_nouveau, textes_existants)
@@ -53,5 +102,62 @@ class LancerTestPlagiatView(APIView):
             utilisateur=request.user,
             message=f"Test plagiat terminé pour '{document.titre}' — Taux : {taux}%"
         )
+        if document.etudiant != request.user:
+            Notification.objects.create(
+                utilisateur=document.etudiant,
+                message=f"Un test plagiat a été lancé sur votre mémoire '{document.titre}' — Taux : {taux}%"
+            )
 
         return Response(TestPlagiatSerializer(test).data, status=status.HTTP_201_CREATED)
+
+
+class LancerTestPlagiatThemeView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, theme_id):
+        user = request.user
+        try:
+            if user.role == 'etudiant':
+                theme = Theme.objects.get(id=theme_id, etudiant=user)
+            else:
+                theme = Theme.objects.get(id=theme_id)
+        except Theme.DoesNotExist:
+            return Response({'error': 'Thème introuvable'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Comparer avec les thèmes validés
+        autres_themes = Theme.objects.filter(statut='valide').exclude(id=theme_id)
+        textes_existants = [t.titre + ' ' + t.description for t in autres_themes if t.titre or t.description]
+
+        # Ajouter les ressources de bibliotheque actives de type theme
+        ressources_themes = Ressource.objects.filter(actif=True, type='theme')
+        for r in ressources_themes:
+            blocs = []
+            if r.titre:
+                blocs.append(r.titre)
+            if r.description:
+                blocs.append(r.description)
+            if r.fichier:
+                texte_pdf = extraire_texte_pdf(r.fichier)
+                if texte_pdf:
+                    blocs.append(texte_pdf)
+            texte_ref = " ".join(blocs).strip()
+            if texte_ref:
+                textes_existants.append(texte_ref)
+
+        texte_nouveau = theme.titre + ' ' + theme.description
+        taux = calculer_taux_plagiat(texte_nouveau, textes_existants)
+
+        theme.taux_plagiat = taux
+        theme.save()
+
+        Notification.objects.create(
+            utilisateur=request.user,
+            message=f"Test plagiat terminé pour le thème '{theme.titre}' — Taux : {taux}%"
+        )
+        if theme.etudiant != request.user:
+            Notification.objects.create(
+                utilisateur=theme.etudiant,
+                message=f"Un test plagiat a été lancé sur votre thème '{theme.titre}' — Taux : {taux}%"
+            )
+
+        return Response({'taux_plagiat': taux}, status=status.HTTP_200_OK)

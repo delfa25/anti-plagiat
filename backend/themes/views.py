@@ -1,4 +1,8 @@
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, status
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from django.shortcuts import get_object_or_404
 from .models import Theme
 from .serializers import ThemeSerializer
 from notifications.models import Notification
@@ -12,10 +16,14 @@ class ThemeListCreateView(generics.ListCreateAPIView):
         user = self.request.user
         if user.role == 'etudiant':
             return Theme.objects.filter(etudiant=user)
-        return Theme.objects.all()
+        return Theme.objects.exclude(statut='brouillon')
 
     def perform_create(self, serializer):
-        serializer.save(etudiant=self.request.user)
+        if Theme.objects.filter(etudiant=self.request.user).exists():
+            raise ValidationError(
+                "Vous avez deja un theme. Modifiez votre soumission existante puis resoumettez-la."
+            )
+        serializer.save(etudiant=self.request.user, statut='brouillon')
 
 
 class ThemeDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -26,15 +34,46 @@ class ThemeDetailView(generics.RetrieveUpdateDestroyAPIView):
         user = self.request.user
         if user.role == 'etudiant':
             return Theme.objects.filter(etudiant=user)
-        return Theme.objects.all()
+        return Theme.objects.exclude(statut='brouillon')
 
     def perform_update(self, serializer):
+        theme = self.get_object()
+        user = self.request.user
+
+        if user.role == 'etudiant':
+            # Etudiant peut modifier brouillon et rejeté uniquement
+            if theme.statut not in ('brouillon', 'rejete'):
+                raise PermissionDenied("Vous ne pouvez plus modifier ce thème.")
+
         theme = serializer.save()
-        if 'statut' in self.request.data:
+
+        # Notification après validation par chef/directeur
+        if 'statut' in self.request.data and user.role != 'etudiant':
             statut = self.request.data['statut']
             commentaire = self.request.data.get('commentaire_validation', '')
-            validateur = self.request.user.email
-            message = f"Votre th\u00e8me '{theme.titre}' a \u00e9t\u00e9 {statut} par {validateur}."
+            message = f"Votre thème '{theme.titre}' a été {statut} par {user.email}."
             if commentaire:
                 message += f" Commentaire : {commentaire}"
             Notification.objects.create(utilisateur=theme.etudiant, message=message)
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        if user.role == 'etudiant' and instance.statut not in ('brouillon',):
+            raise PermissionDenied("Vous ne pouvez supprimer que les brouillons.")
+        instance.delete()
+
+
+class SoumettreThemeView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        theme = get_object_or_404(Theme, pk=pk, etudiant=request.user)
+        if theme.statut in ('brouillon', 'rejete'):
+            theme.statut = 'soumis'
+            theme.save()
+            Notification.objects.create(
+                utilisateur=request.user,
+                message=f"Votre thème '{theme.titre}' a été soumis avec succès."
+            )
+            return Response({'statut': 'soumis'})
+        return Response({'error': 'Impossible de soumettre ce thème.'}, status=status.HTTP_400_BAD_REQUEST)

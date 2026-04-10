@@ -72,9 +72,6 @@ export default function Home() {
               <Link to="/login" className="bg-orange-500 hover:bg-orange-400 text-white font-semibold px-6 py-3 rounded-lg transition shadow-lg">
                 Se connecter
               </Link>
-              <Link to="/login" className="bg-white/10 hover:bg-white/20 text-white font-medium px-6 py-3 rounded-lg transition border border-white/20">
-                Se connecter
-              </Link>
             </div>
           </div>
 

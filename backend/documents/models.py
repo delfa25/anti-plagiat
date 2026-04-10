@@ -6,8 +6,10 @@ from themes.models import Theme
 class Document(models.Model):
 
     STATUS_CHOICES = (
+        ('brouillon', 'Brouillon'),
         ('soumis', 'Soumis'),
-        ('en_attente', 'En attente'),
+        ('valide_chef', 'Validé par le Chef'),
+        ('rejete_chef', 'Rejeté par le Chef'),
         ('valide', 'Validé'),
         ('rejete', 'Rejeté'),
     )
@@ -16,10 +18,10 @@ class Document(models.Model):
 
     fichier = models.FileField(upload_to='documents/')
 
-    theme = models.ForeignKey(
+    theme = models.OneToOneField(
         Theme,
         on_delete=models.CASCADE,
-        related_name='documents'
+        related_name='document'
     )
 
     etudiant = models.ForeignKey(
@@ -32,7 +34,7 @@ class Document(models.Model):
     statut = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default='soumis'
+        default='brouillon'
     )
 
     commentaire_validation = models.TextField(null=True, blank=True)

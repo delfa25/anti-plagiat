@@ -47,6 +47,8 @@ INSTALLED_APPS = [
 
     'rest_framework',
     'corsheaders',
+    'parametres',
+    'bibliotheque',
 ]
 
 MIDDLEWARE = [
@@ -129,7 +131,7 @@ STATIC_URL = 'static/'
 
 AUTH_USER_MODEL = 'users.User'
 MEDIA_URL = '/media/'
-MEDIA_ROOT = 'media'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',

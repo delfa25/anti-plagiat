@@ -14,4 +14,7 @@ urlpatterns = [
     path('api/plagiarism/', include('plagiarism.urls')),
     path('api/validation/', include('validation.urls')),
     path('api/notifications/', include('notifications.urls')),
+    path('api/parametres/', include('parametres.urls')),
+    path('api/bibliotheque/', include('bibliotheque.urls')),
+    path('api/ressources/', include('bibliotheque.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
