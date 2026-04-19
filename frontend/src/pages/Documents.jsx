@@ -20,6 +20,58 @@ const statutLabels = {
   rejete: 'Rejeté',
 };
 
+function HistoriqueTests({ tests, seuil }) {
+  const [open, setOpen] = useState(false);
+  if (!tests || tests.length === 0) return null;
+  const dernier = tests[0];
+
+  return (
+    <div className="mt-3 border-t border-gray-100 pt-3">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-2 text-xs text-gray-500 hover:text-sky-600 transition font-medium"
+      >
+        <div className="w-3.5 h-3.5">{Icons.shield}</div>
+        {tests.length} test{tests.length > 1 ? 's' : ''} effectué{tests.length > 1 ? 's' : ''}
+        — Dernier :{' '}
+        <span className={`font-bold ${dernier.taux_plagiat > seuil ? 'text-red-600' : 'text-green-600'}`}>
+          {dernier.taux_plagiat}%
+        </span>
+        <span className="ml-1 text-gray-400">{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div className="mt-2 space-y-1.5">
+          {tests.map((t, i) => (
+            <div key={t.id} className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs border
+              ${t.taux_plagiat > seuil
+                ? 'bg-red-50 border-red-100 text-red-700'
+                : 'bg-green-50 border-green-100 text-green-700'}`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400 font-medium">#{tests.length - i}</span>
+                <span className={`font-bold text-sm ${t.taux_plagiat > seuil ? 'text-red-600' : 'text-green-600'}`}>
+                  {t.taux_plagiat}%
+                </span>
+                <span className={`px-2 py-0.5 rounded-full font-medium ${
+                  t.taux_plagiat > seuil ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'
+                }`}>
+                  {t.taux_plagiat > seuil ? '⚠ Au-dessus du seuil' : '✓ Sous le seuil'}
+                </span>
+              </div>
+              <div className="text-gray-400 text-right">
+                <p>{new Date(t.date_test).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                <p>{new Date(t.date_test).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+              </div>
+            </div>
+          ))}
+          <p className="text-xs text-gray-400 pt-1">Seuil configuré : {seuil}%</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Documents({ currentUser }) {
   const [documents, setDocuments] = useState([]);
   const [themes, setThemes] = useState([]);
@@ -34,11 +86,25 @@ export default function Documents({ currentUser }) {
   const [editDoc, setEditDoc] = useState(null);
   const [testLoading, setTestLoading] = useState(null);
   const [seuilPlagiat, setSeuilPlagiat] = useState(20);
-  const [testInfo, setTestInfo] = useState('');
+  const [testsParDocument, setTestsParDocument] = useState({});
 
   const isEtudiant = currentUser.role === 'etudiant';
   const isChef = currentUser.role === 'chef';
   const isDirecteur = ['directeur', 'superadmin'].includes(currentUser.role);
+
+  const fetchTests = () => {
+    api.get('/plagiarism/').then(res => {
+      const map = {};
+      res.data.forEach(t => {
+        if (!map[t.document]) map[t.document] = [];
+        map[t.document].push(t);
+      });
+      Object.keys(map).forEach(k => {
+        map[k].sort((a, b) => new Date(b.date_test) - new Date(a.date_test));
+      });
+      setTestsParDocument(map);
+    }).catch(() => {});
+  };
 
   const fetchDocuments = () => {
     setLoading(true);
@@ -50,6 +116,7 @@ export default function Documents({ currentUser }) {
 
   useEffect(() => {
     fetchDocuments();
+    fetchTests();
     api.get('/parametres/valeur/seuil_plagiat/')
       .then(res => setSeuilPlagiat(Number(res.data.valeur) || 20))
       .catch(() => setSeuilPlagiat(20));
@@ -85,12 +152,10 @@ export default function Documents({ currentUser }) {
 
   const handleTestPlagiat = async (id) => {
     setTestLoading(id);
-    setTestInfo('');
     try {
-      const res = await api.post(`/plagiarism/lancer/${id}/`);
-      const taux = typeof res?.data?.taux_plagiat === 'number' ? res.data.taux_plagiat : 0;
-      setTestInfo(`Test plagiat termine: ${taux}%`);
+      await api.post(`/plagiarism/lancer/${id}/`);
       fetchDocuments();
+      fetchTests();
     } catch {
       alert('Erreur lors du test de plagiat.');
     } finally {
@@ -213,11 +278,6 @@ export default function Documents({ currentUser }) {
           Vous avez deja un seul memoire autorise. Modifiez la soumission existante puis resoumettez-la.
         </div>
       )}
-      {testInfo && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
-          {testInfo}
-        </div>
-      )}
 
       {/* Workflow info */}
       {isEtudiant && (
@@ -335,19 +395,35 @@ export default function Documents({ currentUser }) {
                   <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statutBadge[d.statut]}`}>
                     {statutLabels[d.statut]}
                   </span>
-                  {d.taux_plagiat > 0 && (
-                    <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${d.taux_plagiat > seuilPlagiat ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>
-                      Plagiat : {d.taux_plagiat}%
-                    </span>
-                  )}
                 </div>
-                <h3 className="text-gray-900 font-semibold text-sm mb-1">{d.titre}</h3>
-                {d.commentaire_validation && (
-                  <p className="text-gray-400 text-xs italic">"{d.commentaire_validation}"</p>
+                <h3 className="text-gray-900 font-semibold text-sm mb-2">{d.titre}</h3>
+                {d.taux_plagiat > 0 && (
+                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg mb-2 border ${
+                    d.taux_plagiat > seuilPlagiat
+                      ? 'bg-red-50 border-red-200 text-red-700'
+                      : 'bg-green-50 border-green-200 text-green-700'
+                  }`}>
+                    <div className="w-3.5 h-3.5">{Icons.shield}</div>
+                    <span className="text-xs font-medium">Taux de plagiat :</span>
+                    <span className={`text-base font-bold ${
+                      d.taux_plagiat > seuilPlagiat ? 'text-red-600' : 'text-green-600'
+                    }`}>{d.taux_plagiat}%</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                      d.taux_plagiat > seuilPlagiat ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'
+                    }`}>
+                      {d.taux_plagiat > seuilPlagiat ? '⚠ Au-dessus du seuil' : '✓ Sous le seuil'}
+                    </span>
+                  </div>
                 )}
-                <p className="text-gray-300 text-xs mt-1">
+                {d.commentaire_validation && (
+                  <p className="text-gray-400 text-xs italic mb-1">"{d.commentaire_validation}"</p>
+                )}
+                <p className="text-gray-300 text-xs">
                   {new Date(d.date_soumission).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
                 </p>
+
+                {/* Historique tests */}
+                <HistoriqueTests tests={testsParDocument[d.id]} seuil={seuilPlagiat} />
               </div>
 
               <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">

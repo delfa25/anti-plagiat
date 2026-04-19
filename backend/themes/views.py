@@ -6,6 +6,28 @@ from django.shortcuts import get_object_or_404
 from .models import Theme
 from .serializers import ThemeSerializer
 from notifications.models import Notification
+from bibliotheque.models import Ressource
+from parametres.models import Parametre
+
+def ajouter_auto_bibliotheque_theme(theme):
+    """Ajoute automatiquement un thème validé à la bibliothèque si le paramètre est activé."""
+    try:
+        p = Parametre.objects.get(cle='ajout_auto_bibliotheque')
+        if p.valeur != 'true':
+            return
+    except Parametre.DoesNotExist:
+        return
+
+    if Ressource.objects.filter(titre=theme.titre, type='theme').exists():
+        return
+
+    Ressource.objects.create(
+        titre=theme.titre,
+        type='theme',
+        auteur=f"{theme.etudiant.prenom or ''} {theme.etudiant.nom or ''}".strip() or theme.etudiant.email,
+        description=theme.description,
+        actif=True,
+    )
 
 
 class ThemeListCreateView(generics.ListCreateAPIView):
@@ -47,7 +69,7 @@ class ThemeDetailView(generics.RetrieveUpdateDestroyAPIView):
 
         theme = serializer.save()
 
-        # Notification après validation par chef/directeur
+        # Notification + ajout auto bibliothèque après validation
         if 'statut' in self.request.data and user.role != 'etudiant':
             statut = self.request.data['statut']
             commentaire = self.request.data.get('commentaire_validation', '')
@@ -55,6 +77,8 @@ class ThemeDetailView(generics.RetrieveUpdateDestroyAPIView):
             if commentaire:
                 message += f" Commentaire : {commentaire}"
             Notification.objects.create(utilisateur=theme.etudiant, message=message)
+            if statut == 'valide':
+                ajouter_auto_bibliotheque_theme(theme)
 
     def perform_destroy(self, instance):
         user = self.request.user
