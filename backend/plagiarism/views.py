@@ -1,8 +1,10 @@
+import os
+import shutil
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import TestPlagiat
-from .serializers import TestPlagiatSerializer
+from .models import TestPlagiat, TestPlagiatTheme
+from .serializers import TestPlagiatSerializer, TestPlagiatThemeSerializer
 from .utils import extraire_texte_pdf, calculer_taux_plagiat
 from documents.models import Document
 from themes.models import Theme
@@ -35,21 +37,32 @@ def get_textes_reference(exclude_document_id=None):
 
 
 def ajouter_auto_bibliotheque(document):
-    """Ajoute automatiquement un document validé à la bibliothèque si le paramètre est activé."""
+    """Ajoute automatiquement un document validé à la bibliothèque (copie physique du PDF)."""
     try:
         p = Parametre.objects.get(cle='ajout_auto_bibliotheque')
-        if p.valeur == 'true':
-            Ressource.objects.get_or_create(
-                titre=document.titre,
-                defaults={
-                    'fichier': document.fichier,
-                    'type': 'memoire',
-                    'auteur': document.etudiant.email,
-                    'actif': True,
-                }
-            )
+        if p.valeur != 'true':
+            return
     except Parametre.DoesNotExist:
-        pass
+        return
+
+    if Ressource.objects.filter(titre=document.titre, type='memoire').exists():
+        return
+
+    # Copier physiquement le fichier dans bibliotheque/
+    from django.core.files.base import ContentFile
+    src_path = document.fichier.path
+    nom_fichier = os.path.basename(src_path)
+    dest_relative = f'bibliotheque/{nom_fichier}'
+
+    ressource = Ressource(
+        titre=document.titre,
+        type='memoire',
+        auteur=f"{document.etudiant.prenom or ''} {document.etudiant.nom or ''}".strip() or document.etudiant.email,
+        actif=True,
+    )
+    with open(src_path, 'rb') as f:
+        ressource.fichier.save(nom_fichier, ContentFile(f.read()), save=False)
+    ressource.save()
 
 
 class TestPlagiatListCreateView(generics.ListCreateAPIView):
@@ -111,6 +124,17 @@ class LancerTestPlagiatView(APIView):
         return Response(TestPlagiatSerializer(test).data, status=status.HTTP_201_CREATED)
 
 
+class TestPlagiatThemeListView(generics.ListAPIView):
+    serializer_class = TestPlagiatThemeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'etudiant':
+            return TestPlagiatTheme.objects.filter(theme__etudiant=user)
+        return TestPlagiatTheme.objects.all()
+
+
 class LancerTestPlagiatThemeView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -124,18 +148,12 @@ class LancerTestPlagiatThemeView(APIView):
         except Theme.DoesNotExist:
             return Response({'error': 'Thème introuvable'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Comparer avec les thèmes validés
         autres_themes = Theme.objects.filter(statut='valide').exclude(id=theme_id)
         textes_existants = [t.titre + ' ' + t.description for t in autres_themes if t.titre or t.description]
 
-        # Ajouter les ressources de bibliotheque actives de type theme
         ressources_themes = Ressource.objects.filter(actif=True, type='theme')
         for r in ressources_themes:
-            blocs = []
-            if r.titre:
-                blocs.append(r.titre)
-            if r.description:
-                blocs.append(r.description)
+            blocs = [b for b in [r.titre, r.description] if b]
             if r.fichier:
                 texte_pdf = extraire_texte_pdf(r.fichier)
                 if texte_pdf:
@@ -150,6 +168,8 @@ class LancerTestPlagiatThemeView(APIView):
         theme.taux_plagiat = taux
         theme.save()
 
+        test = TestPlagiatTheme.objects.create(theme=theme, taux_plagiat=taux)
+
         Notification.objects.create(
             utilisateur=request.user,
             message=f"Test plagiat terminé pour le thème '{theme.titre}' — Taux : {taux}%"
@@ -160,4 +180,4 @@ class LancerTestPlagiatThemeView(APIView):
                 message=f"Un test plagiat a été lancé sur votre thème '{theme.titre}' — Taux : {taux}%"
             )
 
-        return Response({'taux_plagiat': taux}, status=status.HTTP_200_OK)
+        return Response(TestPlagiatThemeSerializer(test).data, status=status.HTTP_201_CREATED)

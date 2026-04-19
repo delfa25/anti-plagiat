@@ -1,0 +1,12 @@
+django>=4.2,<5.0
+djangorestframework
+djangorestframework-simplejwt
+django-cors-headers
+psycopg2-binary
+PyPDF2
+pdf2image
+pytesseract
+Pillow
+scikit-learn
+nltk
+python-decouple

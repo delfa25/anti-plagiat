@@ -1,19 +1,5 @@
-from django.db import models
-from django.conf import settings
+from django.contrib import admin
+from .models import TestPlagiat, TestPlagiatTheme
 
-
-class Notification(models.Model):
-
-    utilisateur = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE
-    )
-
-    message = models.TextField()
-
-    lu = models.BooleanField(default=False)
-
-    date = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.message
+admin.site.register(TestPlagiat)
+admin.site.register(TestPlagiatTheme)

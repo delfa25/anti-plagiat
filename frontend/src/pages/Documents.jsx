@@ -55,12 +55,15 @@ export default function Documents({ currentUser }) {
       .catch(() => setSeuilPlagiat(20));
     if (isEtudiant) {
       api.get('/themes/').then(res => {
-        // Uniquement les thèmes validés sans mémoire déjà associé
-        const themesValides = res.data.filter(t => t.statut === 'valide' && !t.a_document);
+        // Themes valides libres + theme deja lie au document en edition
+        const themeCourant = editDoc ? Number(editDoc.theme) : null;
+        const themesValides = res.data.filter(t =>
+          t.statut === 'valide' && (!t.a_document || Number(t.id) === themeCourant)
+        );
         setThemes(themesValides);
       });
     }
-  }, [isEtudiant]);
+  }, [isEtudiant, editDoc]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

@@ -127,26 +127,33 @@
 
 ---
 
-## 🐳 PHASE 7 — Docker & DevOps (Partielle)
-- [x] `docker-compose.yml` présent (backend + frontend + db)
-- [ ] Vérifier fonctionnement end-to-end
-- [ ] Variables d'environnement (`.env`)
-- [ ] Basculer backend runtime vers PostgreSQL (au lieu de SQLite)
+## ✅ PHASE 7 — Docker & DevOps (Terminée)
+- [x] `docker-compose.yml` (backend + frontend + db + healthcheck)
+- [x] Fonctionnement end-to-end vérifié
+- [x] Variables d'environnement (`.env` + `.env.example`)
+- [x] PostgreSQL actif via `docker-compose`
+- [x] `DEFAULT_AUTO_FIELD = BigAutoField` — warnings W042 supprimés
+- [x] Dockerfile frontend corrigé (ordre `npm install` avant `COPY`)
+- [x] Dockerfile backend : Tesseract + Poppler + toutes dépendances NLP
+- [x] `requirements.txt` créé
+- [x] Chemins OCR externalisés via variables d'environnement
 
 ---
 
-## 🧪 PHASE 8 — Tests (À faire)
-- [ ] Tests API automatisés (pytest ou Django/DRF tests)
-- [ ] Tests upload fichiers
-- [ ] Tests flux complet (étudiant → chef → DA)
-- [ ] Tests moteur plagiat (PDF texte + PDF scanné)
+## ✅ PHASE 8 — Tests (Terminée)
+- [x] Tests moteur plagiat : texte identique, vide, corpus vide, textes différents, similarité partielle
+- [x] Tests API TestPlagiat mémoires (liste étudiant, liste chef, non authentifié)
+- [x] Tests API TestPlagiatTheme (liste, lancer sans corpus, thème inexistant, accès interdit)
+- [x] Tests flux document : création, double création, soumission, validation chef, rejet chef, validation DA, isolation étudiant, visibilité chef
+- [x] Tests flux thème : création, double création, soumission, validation chef, rejet, resoumission après rejet, modification interdite après soumission
 
 ---
 
 ## 🚀 PHASE 9 — Déploiement (À faire)
 - [ ] Choisir plateforme (Railway / Render / VPS)
-- [ ] Variables d'environnement production
-- [ ] Build frontend
+- [ ] `DEBUG=False` + `ALLOWED_HOSTS` production
+- [ ] `STATIC_ROOT` + `collectstatic`
+- [ ] Build frontend (`npm run build`)
 - [ ] Déployer
 
 ---
@@ -156,6 +163,6 @@
 > On est ici 👇
 
 **Priorité immédiate**
-1. Lancer la campagne de tests de flux réel (étudiant → chef → DA)
-2. Stabiliser Docker + PostgreSQL + `.env`
-3. Préparer la phase déploiement
+1. Lancer les tests automatisés : `python manage.py test plagiarism documents themes`
+2. Préparer la configuration production (DEBUG=False, STATIC_ROOT)
+3. Choisir la plateforme de déploiement et déployer

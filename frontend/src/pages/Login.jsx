@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import { Icons } from '../components/Icons';
 
@@ -26,35 +26,22 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-sky-50 flex">
-
-      {/* Left panel */}
-      <div className="hidden lg:flex w-1/2 bg-sky-600 flex-col justify-between p-12">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 text-white">{Icons.shield}</div>
-          <span className="text-white font-bold text-xl">ScholarCheck</span>
-        </div>
-        <div>
-          <h2 className="text-4xl font-bold text-white leading-tight mb-4">
-            Système de détection<br />de plagiat
-          </h2>
-          <p className="text-sky-100 text-lg">
-            Institut Burkinabè des Arts et Métiers — Plateforme de gestion des thèmes et mémoires.
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+      <div className="w-full max-w-md">
+        <div className="mb-6 text-center">
+          <div className="mx-auto w-12 h-12 bg-sky-600 rounded-xl flex items-center justify-center mb-3">
+            <div className="w-6 h-6 text-white">{Icons.shield}</div>
+          </div>
+          <h1 className="text-2xl font-semibold text-gray-900">ScholarCheck</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Système de détection de plagiat
           </p>
         </div>
-        <p className="text-sky-300 text-sm">© ScholarCheck — Tous droits réservés</p>
-      </div>
 
-      {/* Right panel */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-white">
-        <div className="w-full max-w-sm">
-
-          <div className="mb-8">
-            <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center mb-4">
-              <div className="w-6 h-6 text-white">{Icons.shield}</div>
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-1">Connexion</h1>
-            <p className="text-gray-500 text-sm">Accédez à votre espace personnel</p>
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6">
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold text-gray-900">Connexion</h2>
+            <p className="text-gray-500 text-sm mt-1">Accédez à votre espace personnel</p>
           </div>
 
           {error && (
@@ -97,18 +84,11 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-orange-500 hover:bg-orange-400 disabled:bg-orange-300 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-lg text-sm transition duration-200 mt-2"
+              className="w-full bg-sky-600 hover:bg-sky-500 disabled:bg-sky-300 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-lg text-sm transition duration-200 mt-2"
             >
               {loading ? 'Connexion en cours...' : 'Se connecter'}
             </button>
           </form>
-
-          <p className="text-center text-gray-500 text-sm mt-6">
-            Pas encore de compte ?{' '}
-            <Link to="/register" className="text-sky-600 hover:text-sky-500 font-medium transition">
-              Créer un compte
-            </Link>
-          </p>
         </div>
       </div>
     </div>

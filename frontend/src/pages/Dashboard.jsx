@@ -54,6 +54,7 @@ export default function Dashboard() {
   const [active, setActive] = useState('home');
   const [collapsed, setCollapsed] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showProfileCard, setShowProfileCard] = useState(false);
   const navigate = useNavigate();
 
   const fetchUnread = useCallback(() => {
@@ -75,6 +76,14 @@ export default function Dashboard() {
       return () => clearInterval(interval);
     }
   }, [user, fetchUnread]);
+
+  useEffect(() => {
+    const handleGlobalClick = () => setShowProfileCard(false);
+    if (showProfileCard) {
+      document.addEventListener('click', handleGlobalClick);
+    }
+    return () => document.removeEventListener('click', handleGlobalClick);
+  }, [showProfileCard]);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -147,7 +156,7 @@ export default function Dashboard() {
 
         <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6 shrink-0 shadow-sm">
           <h1 className="text-gray-800 font-semibold">{activeLabel}</h1>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 relative">
             <button onClick={() => setActive('notifications')}
               className="relative w-8 h-8 flex items-center justify-center text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition">
               <div className="w-4 h-4">{Icons.bell}</div>
@@ -160,9 +169,56 @@ export default function Dashboard() {
             <span className="text-xs text-sky-700 bg-sky-100 px-2.5 py-1 rounded-full font-medium">
               {roleLabels[user.role]}
             </span>
-            <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowProfileCard(v => !v);
+              }}
+              className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-xs hover:bg-orange-400 transition"
+              title="Voir profil"
+            >
               {user.email[0].toUpperCase()}
-            </div>
+            </button>
+            {showProfileCard && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute top-11 right-0 w-72 bg-white border border-gray-200 rounded-xl shadow-lg p-4 z-20"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900">Mon profil</h3>
+                  <button
+                    onClick={() => setShowProfileCard(false)}
+                    className="text-gray-400 hover:text-gray-600 transition"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="space-y-2 text-xs">
+                  <p className="text-gray-500">
+                    <span className="font-medium text-gray-700">Nom:</span>{' '}
+                    {user.nom || '—'}
+                  </p>
+                  <p className="text-gray-500">
+                    <span className="font-medium text-gray-700">Prénom:</span>{' '}
+                    {user.prenom || '—'}
+                  </p>
+                  <p className="text-gray-500 break-all">
+                    <span className="font-medium text-gray-700">Email:</span>{' '}
+                    {user.email}
+                  </p>
+                  <p className="text-gray-500">
+                    <span className="font-medium text-gray-700">Rôle:</span>{' '}
+                    {roleLabels[user.role] || user.role}
+                  </p>
+                  {user.role === 'etudiant' && (
+                    <p className="text-gray-500">
+                      <span className="font-medium text-gray-700">INE:</span>{' '}
+                      {user.ine || '—'}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </header>
 

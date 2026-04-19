@@ -1,3 +1,4 @@
+import os
 import re
 import unicodedata
 import PyPDF2
@@ -7,7 +8,11 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from nltk.corpus import stopwords
 
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+# Chemin Tesseract : variable d'env en priorité, sinon chemin Windows local
+_tesseract_cmd = os.environ.get('TESSERACT_CMD', r'C:\Program Files\Tesseract-OCR\tesseract.exe')
+pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd
+
+_poppler_path = os.environ.get('POPPLER_PATH', r'C:\poppler\poppler-25.12.0\Library\bin')
 
 STOPWORDS_FR = list(stopwords.words('french'))
 
@@ -150,7 +155,7 @@ def extraire_texte_pdf(fichier):
 
         # Fallback OCR si PDF scanné
         chemin = fichier.path if hasattr(fichier, 'path') else str(fichier)
-        images = convert_from_path(chemin, dpi=300, poppler_path=r'C:\poppler\poppler-25.12.0\Library\bin')
+        images = convert_from_path(chemin, dpi=300, poppler_path=_poppler_path or None)
         texte_ocr = ""
         for image in images:
             texte_ocr += pytesseract.image_to_string(image, lang='fra') + " "
