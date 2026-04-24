@@ -39,8 +39,7 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='etudiant')
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=150, blank=True, null=True)
-    nom = models.CharField(max_length=100, blank=True, null=True)
-    prenom = models.CharField(max_length=100, blank=True, null=True)
+    nom = models.CharField(max_length=200, blank=True, null=True)
     ine = models.CharField(max_length=20, unique=True, blank=True, null=True)
 
     USERNAME_FIELD = 'email'

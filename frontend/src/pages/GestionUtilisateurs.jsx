@@ -24,7 +24,7 @@ const roleFilters = [
   { key: 'superadmin', label: 'Admins' },
 ];
 
-const emptyForm = { email: '', nom: '', prenom: '', role: 'etudiant', password: '' };
+const emptyForm = { email: '', nom: '', role: 'etudiant', password: '' };
 
 export default function GestionUtilisateurs({ currentUser }) {
   const [users, setUsers] = useState([]);
@@ -67,7 +67,7 @@ export default function GestionUtilisateurs({ currentUser }) {
   };
 
   const handleEdit = (user) => {
-    setForm({ email: user.email, nom: user.nom || '', prenom: user.prenom || '', role: user.role, password: '' });
+    setForm({ email: user.email, nom: user.nom || '', role: user.role, password: '' });
     setEditId(user.id);
     setShowForm(true);
     setError('');
@@ -95,19 +95,16 @@ export default function GestionUtilisateurs({ currentUser }) {
     const matchSearch =
       u.email.toLowerCase().includes(search.toLowerCase()) ||
       (u.nom || '').toLowerCase().includes(search.toLowerCase()) ||
-      (u.prenom || '').toLowerCase().includes(search.toLowerCase()) ||
       (u.ine || '').toLowerCase().includes(search.toLowerCase());
     return matchRole && matchSearch;
   });
 
   const countByRole = (role) => users.filter(u => u.role === role).length;
-
   const isEtudiantView = activeFilter === 'etudiant';
 
   return (
     <div className="space-y-5 max-w-5xl">
 
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Utilisateurs</h2>
@@ -122,23 +119,16 @@ export default function GestionUtilisateurs({ currentUser }) {
         </button>
       </div>
 
-      {/* Form */}
       {showForm && (
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
           <h3 className="font-semibold text-gray-800 mb-4">{editId ? 'Modifier' : 'Créer'} un utilisateur</h3>
           {error && <div className="bg-red-50 border border-red-200 text-red-600 rounded-lg p-3 mb-4 text-sm">{error}</div>}
           <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-gray-600 text-sm font-medium mb-1">Prénom</label>
-              <input type="text" value={form.prenom} onChange={e => setForm({ ...form, prenom: e.target.value })}
-                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
-                placeholder="Prénom" />
-            </div>
-            <div>
-              <label className="block text-gray-600 text-sm font-medium mb-1">Nom</label>
+            <div className="sm:col-span-2">
+              <label className="block text-gray-600 text-sm font-medium mb-1">Nom et prénoms</label>
               <input type="text" value={form.nom} onChange={e => setForm({ ...form, nom: e.target.value })}
                 className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
-                placeholder="Nom" />
+                placeholder="Nom et prénoms complets" />
             </div>
             <div>
               <label className="block text-gray-600 text-sm font-medium mb-1">Email <span className="text-red-400">*</span></label>
@@ -174,7 +164,6 @@ export default function GestionUtilisateurs({ currentUser }) {
         </div>
       )}
 
-      {/* Filtres par rôle */}
       <div className="flex items-center gap-2 flex-wrap">
         {roleFilters.map(f => {
           const count = f.key === 'tous' ? users.length : countByRole(f.key);
@@ -197,7 +186,6 @@ export default function GestionUtilisateurs({ currentUser }) {
         })}
       </div>
 
-      {/* Search */}
       <div className="relative">
         <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400">{Icons.mail}</div>
         <input
@@ -209,7 +197,6 @@ export default function GestionUtilisateurs({ currentUser }) {
         />
       </div>
 
-      {/* Table */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -241,9 +228,7 @@ export default function GestionUtilisateurs({ currentUser }) {
                         {u.email[0].toUpperCase()}
                       </div>
                       <div>
-                        <p className="text-gray-800 font-medium text-sm">
-                          {u.prenom || u.nom ? `${u.prenom || ''} ${u.nom || ''}`.trim() : '—'}
-                        </p>
+                        <p className="text-gray-800 font-medium text-sm">{u.nom || '—'}</p>
                         <p className="text-gray-400 text-xs">{u.email}</p>
                       </div>
                     </div>

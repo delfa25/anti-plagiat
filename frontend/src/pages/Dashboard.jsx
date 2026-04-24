@@ -198,10 +198,6 @@ export default function Dashboard() {
                     <span className="font-medium text-gray-700">Nom:</span>{' '}
                     {user.nom || '—'}
                   </p>
-                  <p className="text-gray-500">
-                    <span className="font-medium text-gray-700">Prénom:</span>{' '}
-                    {user.prenom || '—'}
-                  </p>
                   <p className="text-gray-500 break-all">
                     <span className="font-medium text-gray-700">Email:</span>{' '}
                     {user.email}
