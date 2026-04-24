@@ -20,6 +20,8 @@ export default function Bibliotheque({ currentUser }) {
   const [ajoutManuelActif, setAjoutManuelActif] = useState(true);
   const [extracting, setExtracting] = useState(false);
 
+  const [previewUrl, setPreviewUrl] = useState(null);
+
   const canManageRole = ['superadmin', 'directeur'].includes(currentUser.role) || currentUser.is_superuser;
   const canManage = canManageRole && ajoutManuelActif;
 
@@ -58,6 +60,7 @@ export default function Bibliotheque({ currentUser }) {
       setShowForm(false);
       setForm(emptyForm);
       setEditId(null);
+      setPreviewUrl(null);
       fetchRessources();
     } catch {
       setError("Erreur lors de l'enregistrement.");
@@ -68,6 +71,7 @@ export default function Bibliotheque({ currentUser }) {
     setForm({ titre: r.titre, type: r.type, auteur: r.auteur || '', annee: r.annee || '', description: r.description || '', fichier: null });
     setEditId(r.id);
     setShowForm(true);
+    setPreviewUrl(null);
     setError('');
   };
 
@@ -75,6 +79,10 @@ export default function Bibliotheque({ currentUser }) {
     const fichier = e.target.files[0];
     if (!fichier) return;
     setForm(f => ({ ...f, fichier }));
+
+    // Preview local
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(URL.createObjectURL(fichier));
 
     // Extraction automatique des infos uniquement en mode création
     if (editId) return;
@@ -218,6 +226,29 @@ export default function Bibliotheque({ currentUser }) {
                 </div>
               )}
             </div>
+            {/* Preview PDF */}
+            {previewUrl && (
+              <div className="sm:col-span-2">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-gray-600 text-sm font-medium">Aperçu du document</label>
+                  <button
+                    type="button"
+                    onClick={() => { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }}
+                    className="text-xs text-gray-400 hover:text-red-500 transition"
+                  >
+                    Fermer l’aperçu
+                  </button>
+                </div>
+                <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
+                  <iframe
+                    src={previewUrl}
+                    title="Aperçu PDF"
+                    className="w-full"
+                    style={{ height: '500px' }}
+                  />
+                </div>
+              </div>
+            )}
             <div className="sm:col-span-2">
               <label className="block text-gray-600 text-sm font-medium mb-1">Description</label>
               <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}

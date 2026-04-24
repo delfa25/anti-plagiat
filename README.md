@@ -1,7 +1,7 @@
 # ScholarCheck — Système de Détection de Plagiat
 
 Plateforme web de détection de plagiat pour mémoires et thèmes académiques.  
-Stack : Django REST Framework · React · PostgreSQL · Docker
+Stack : Django 6 · Django REST Framework · React 19 · PostgreSQL · Docker
 
 ---
 
@@ -9,11 +9,14 @@ Stack : Django REST Framework · React · PostgreSQL · Docker
 
 - Dépôt et gestion de mémoires (PDF) et de thèmes
 - Détection de plagiat par TF-IDF + similarité cosinus, optimisée pour le français
-- OCR automatique pour les PDFs scannés (Tesseract)
+- OCR automatique pour les PDFs scannés (Tesseract + pdf2image)
+- Extraction automatique du thème, auteur et année depuis les PDFs importés
+- Analyse détaillée : source suspectée + passages suspects côte à côte
+- Historique complet des tests de plagiat par document/thème
 - Workflow de validation multi-niveaux : Étudiant → Chef de département → Directeur Adjoint
 - Bibliothèque de ressources de référence (ajout manuel ou automatique après validation)
 - Paramètres système configurables (seuil de plagiat, règles bibliothèque)
-- Notifications en temps réel à chaque étape du workflow
+- Notifications à chaque étape du workflow
 - Gestion des utilisateurs avec rôles et INE auto-généré pour les étudiants
 
 ---
@@ -26,6 +29,17 @@ Stack : Django REST Framework · React · PostgreSQL · Docker
 | `directeur` | Validation finale, bibliothèque, paramètres |
 | `chef` | Validation intermédiaire, test plagiat |
 | `etudiant` | Dépôt thème/mémoire, test plagiat, soumission |
+
+---
+
+## Comptes de test (après init)
+
+| Rôle | Email | Mot de passe |
+|---|---|---|
+| Super Admin | admin@scholarcheck.com | admin1234 |
+| Directeur Adjoint | da@scholarcheck.com | dada1234 |
+| Chef de département | chefdep@scholarcheck.com | chefdep1234 |
+| Étudiant | etud@scholarcheck.com | etud1234 |
 
 ---
 
@@ -61,6 +75,9 @@ DB_USER=postgres
 DB_PASSWORD=postgres
 DB_HOST=db
 DB_PORT=5432
+# Laisser vide sous Docker/Linux (Tesseract et Poppler dans le PATH)
+TESSERACT_CMD=
+POPPLER_PATH=
 ```
 
 Pour générer une `SECRET_KEY` :
@@ -75,41 +92,75 @@ python -c "from django.core.management.utils import get_random_secret_key; print
 docker-compose up --build
 ```
 
+Le backend applique automatiquement les migrations au démarrage.
+
 - Frontend : http://localhost:3000
 - Backend API : http://localhost:8000
 - Admin Django : http://localhost:8000/admin
 
-### 4. Créer un superadmin
+### 4. Initialiser la base (migrations + comptes de test)
 
 ```bash
-docker-compose exec backend python manage.py createsuperuser
+docker-compose exec backend sh /app/init_db.sh
 ```
 
 ---
 
-## Lancement sans Docker (dev local Windows)
+## Lancement sans Docker
 
-### Backend
+### Dev local Windows
 
 ```bash
+# Démarrer uniquement PostgreSQL
+docker-compose up db -d
+
+# Backend
 cd backend
+python -m venv venv
+venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Dans `backend/.env`, adapter les chemins OCR :
+Dans `backend/.env`, adapter :
 
 ```env
-DB_ENGINE=django.db.backends.sqlite3
+DB_HOST=localhost
 TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe
 POPPLER_PATH=C:\poppler\poppler-25.12.0\Library\bin
 ```
 
 ```bash
-python manage.py migrate
+# Initialiser (migrations + comptes de test)
+init_local.bat
+
+# Lancer
 python manage.py runserver
 ```
 
-### Frontend
+### Dev local Linux / macOS
+
+```bash
+# Dépendances système
+sudo apt-get install -y tesseract-ocr tesseract-ocr-fra poppler-utils  # Debian/Ubuntu
+# brew install tesseract poppler  # macOS
+
+# Démarrer PostgreSQL
+docker-compose up db -d
+
+# Backend
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+# Éditer .env : DB_HOST=localhost, laisser TESSERACT_CMD et POPPLER_PATH vides
+
+python manage.py migrate
+sh init_db.sh
+python manage.py runserver
+```
+
+### Frontend (tous OS)
 
 ```bash
 cd frontend
@@ -122,15 +173,23 @@ npm start
 ## Lancer les tests
 
 ```bash
+# Avec Docker
 docker-compose exec backend python manage.py test plagiarism documents themes
-```
 
-Ou en local :
-
-```bash
+# En local
 cd backend
 python manage.py test plagiarism documents themes
 ```
+
+---
+
+## Scripts utilitaires
+
+| Script | Description |
+|---|---|
+| `init_local.bat` | Windows — migrations + comptes de test + paramètres |
+| `backend/init_db.sh` | Linux/Docker — même chose |
+| `migrate.bat` | Windows — makemigrations + migrate toutes les apps |
 
 ---
 
@@ -140,6 +199,7 @@ python manage.py test plagiarism documents themes
 |---|---|---|
 | POST | `/api/token/` | Obtenir un token JWT |
 | POST | `/api/token/refresh/` | Rafraîchir le token |
+| GET | `/api/users/me/` | Profil utilisateur connecté |
 | GET/POST | `/api/users/` | Gestion utilisateurs |
 | GET/POST | `/api/themes/` | Thèmes |
 | POST | `/api/themes/<id>/soumettre/` | Soumettre un thème |
@@ -150,7 +210,9 @@ python manage.py test plagiarism documents themes
 | POST | `/api/plagiarism/lancer/<id>/` | Tester plagiat d'un mémoire |
 | GET | `/api/plagiarism/` | Historique tests plagiat mémoires |
 | GET/PUT | `/api/parametres/` | Paramètres système |
+| GET | `/api/parametres/valeur/<cle>/` | Valeur d'un paramètre |
 | GET/POST | `/api/bibliotheque/` | Bibliothèque de ressources |
+| POST | `/api/bibliotheque/extraire-infos/` | Extraire infos d'un PDF |
 | POST | `/api/bibliotheque/<id>/toggle/` | Activer/désactiver une ressource |
 | GET | `/api/notifications/` | Notifications |
 
@@ -164,17 +226,23 @@ anti-plagiat/
 │   ├── users/          # Auth custom, rôles, INE
 │   ├── themes/         # Thèmes de mémoire
 │   ├── documents/      # Mémoires PDF
-│   ├── plagiarism/     # Moteur TF-IDF + OCR
+│   ├── plagiarism/     # Moteur TF-IDF + OCR + analyse passages
 │   ├── validation/     # Historique validations
 │   ├── notifications/  # Alertes
 │   ├── parametres/     # Config dynamique
-│   ├── bibliotheque/   # Ressources de référence
-│   └── config/         # Settings Django
+│   ├── bibliotheque/   # Ressources de référence + extraction PDF
+│   ├── config/         # Settings Django
+│   ├── init_db.sh      # Script init Linux/Docker
+│   ├── init_users.py   # Création comptes de test
+│   ├── init_params.py  # Paramètres par défaut
+│   └── requirements.txt
 ├── frontend/
 │   └── src/
-│       ├── pages/      # Dashboard, Thèmes, Documents, ...
-│       └── components/ # PrivateRoute, Icons
+│       ├── pages/      # Dashboard, Thèmes, Documents, Bibliothèque...
+│       └── components/ # PrivateRoute, Icons, HistoriqueTests
 ├── docker-compose.yml
+├── init_local.bat      # Script init Windows
+├── migrate.bat         # Script migrations Windows
 ├── ROADMAP.md
 └── README.md
 ```
@@ -188,11 +256,23 @@ anti-plagiat/
 | `SECRET_KEY` | Clé secrète Django | *(obligatoire)* |
 | `DEBUG` | Mode debug | `True` |
 | `ALLOWED_HOSTS` | Hôtes autorisés | `localhost,127.0.0.1` |
-| `DB_ENGINE` | Backend base de données | `sqlite3` |
-| `DB_NAME` | Nom de la base | `db.sqlite3` |
-| `DB_USER` | Utilisateur DB | *(vide)* |
-| `DB_PASSWORD` | Mot de passe DB | *(vide)* |
-| `DB_HOST` | Hôte DB | *(vide)* |
-| `DB_PORT` | Port DB | *(vide)* |
-| `TESSERACT_CMD` | Chemin Tesseract (Windows) | *(dans le PATH sous Linux)* |
-| `POPPLER_PATH` | Chemin Poppler (Windows) | *(dans le PATH sous Linux)* |
+| `DB_ENGINE` | Backend base de données | `postgresql` |
+| `DB_NAME` | Nom de la base | `anti_plagiat` |
+| `DB_USER` | Utilisateur DB | `postgres` |
+| `DB_PASSWORD` | Mot de passe DB | `postgres` |
+| `DB_HOST` | Hôte DB (`db` sous Docker, `localhost` en local) | `db` |
+| `DB_PORT` | Port DB | `5432` |
+| `TESSERACT_CMD` | Chemin Tesseract (Windows uniquement) | *(PATH sous Linux)* |
+| `POPPLER_PATH` | Chemin Poppler (Windows uniquement) | *(PATH sous Linux)* |
+
+---
+
+## Compatibilité
+
+| Composant | Version |
+|---|---|
+| Python | 3.12+ / 3.14 |
+| Django | 6.x |
+| Node.js | 18+ |
+| PostgreSQL | 15 |
+| Docker Compose | v2 |
