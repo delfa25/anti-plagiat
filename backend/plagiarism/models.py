@@ -11,6 +11,8 @@ class TestPlagiat(models.Model):
         related_name='tests_plagiat'
     )
     taux_plagiat = models.FloatField()
+    source_titre = models.CharField(max_length=500, null=True, blank=True)
+    phrases_suspectes = models.JSONField(default=list, blank=True)
     rapport = models.FileField(upload_to='rapports_plagiat/', null=True, blank=True)
     date_test = models.DateTimeField(auto_now_add=True)
 
@@ -26,6 +28,8 @@ class TestPlagiatTheme(models.Model):
         related_name='tests_plagiat'
     )
     taux_plagiat = models.FloatField()
+    source_titre = models.CharField(max_length=500, null=True, blank=True)
+    phrases_suspectes = models.JSONField(default=list, blank=True)
     date_test = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

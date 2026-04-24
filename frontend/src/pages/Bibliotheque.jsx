@@ -18,6 +18,7 @@ export default function Bibliotheque({ currentUser }) {
   const [activeFilter, setActiveFilter] = useState('tous');
   const [typeFilter, setTypeFilter] = useState('tous');
   const [ajoutManuelActif, setAjoutManuelActif] = useState(true);
+  const [extracting, setExtracting] = useState(false);
 
   const canManageRole = ['superadmin', 'directeur'].includes(currentUser.role) || currentUser.is_superuser;
   const canManage = canManageRole && ajoutManuelActif;
@@ -68,6 +69,40 @@ export default function Bibliotheque({ currentUser }) {
     setEditId(r.id);
     setShowForm(true);
     setError('');
+  };
+
+  const handleFichierChange = async (e) => {
+    const fichier = e.target.files[0];
+    if (!fichier) return;
+    setForm(f => ({ ...f, fichier }));
+
+    // Extraction automatique des infos uniquement en mode création
+    if (editId) return;
+    setExtracting(true);
+    try {
+      const data = new FormData();
+      data.append('fichier', fichier);
+      const res = await api.post('/bibliotheque/extraire-infos/', data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setForm(f => ({
+        ...f,
+        fichier,
+        titre: res.data.titre || f.titre,
+        auteur: res.data.auteur || f.auteur,
+        annee: res.data.annee || f.annee,
+      }));
+    } catch (err) {
+      // Afficher une erreur utile à l'utilisateur
+      try {
+        const msg = err.response?.data?.message || 'Impossible d\'extraire les informations du PDF.';
+        setError(msg);
+      } catch {
+        setError("Impossible d'extraire les informations du PDF.");
+      }
+    } finally {
+      setExtracting(false);
+    }
   };
 
   const handleDelete = async (id) => {
@@ -167,8 +202,21 @@ export default function Bibliotheque({ currentUser }) {
               <label className="block text-gray-600 text-sm font-medium mb-1">
                 Fichier PDF {editId && <span className="text-gray-400 font-normal">(laisser vide pour garder l'actuel)</span>}
               </label>
-              <input type="file" accept=".pdf" onChange={e => setForm({ ...form, fichier: e.target.files[0] })}
+              <input type="file" accept=".pdf" onChange={handleFichierChange}
                 className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 transition" />
+              {form.fichier && (
+                <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-sky-50 border border-sky-100 rounded-lg">
+                  <div className="w-4 h-4 text-sky-500 shrink-0">{Icons.document}</div>
+                  <span className="text-xs text-sky-700 font-medium truncate">{form.fichier.name}</span>
+                  <span className="text-xs text-sky-400 shrink-0">({(form.fichier.size / 1024).toFixed(0)} Ko)</span>
+                  {extracting && (
+                    <span className="ml-auto flex items-center gap-1 text-xs text-sky-500">
+                      <div className="w-3 h-3 border-2 border-sky-400 border-t-transparent rounded-full animate-spin"></div>
+                      Extraction en cours...
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <div className="sm:col-span-2">
               <label className="block text-gray-600 text-sm font-medium mb-1">Description</label>

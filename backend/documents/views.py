@@ -28,6 +28,9 @@ class DocumentListCreateView(generics.ListCreateAPIView):
             raise ValidationError(
                 "Vous avez deja un memoire. Modifiez votre soumission existante puis resoumettez-la."
             )
+        theme = serializer.validated_data.get('theme')
+        if theme and theme.statut != 'valide':
+            raise ValidationError("Le theme associe doit etre valide avant de deposer un memoire.")
         serializer.save(etudiant=self.request.user, statut='brouillon')
 
 

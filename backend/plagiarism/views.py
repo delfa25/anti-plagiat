@@ -1,5 +1,4 @@
 import os
-import shutil
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -14,10 +13,7 @@ from notifications.models import Notification
 
 
 def get_textes_reference(exclude_document_id=None):
-    """Retourne les textes de référence : documents validés + bibliothèque active."""
-    textes = []
-
-    # Documents validés
+    textes, titres = [], []
     docs = Document.objects.filter(statut='valide')
     if exclude_document_id:
         docs = docs.exclude(id=exclude_document_id)
@@ -25,39 +21,32 @@ def get_textes_reference(exclude_document_id=None):
         texte = extraire_texte_pdf(doc.fichier)
         if texte.strip():
             textes.append(texte)
-
-    # Bibliothèque de ressources actives avec fichier
+            titres.append(doc.titre)
     ressources = Ressource.objects.filter(actif=True, fichier__isnull=False)
     for r in ressources:
         texte = extraire_texte_pdf(r.fichier)
         if texte.strip():
             textes.append(texte)
-
-    return textes
+            titres.append(r.titre)
+    return textes, titres
 
 
 def ajouter_auto_bibliotheque(document):
-    """Ajoute automatiquement un document validé à la bibliothèque (copie physique du PDF)."""
     try:
         p = Parametre.objects.get(cle='ajout_auto_bibliotheque')
         if p.valeur != 'true':
             return
     except Parametre.DoesNotExist:
         return
-
     if Ressource.objects.filter(titre=document.titre, type='memoire').exists():
         return
-
-    # Copier physiquement le fichier dans bibliotheque/
     from django.core.files.base import ContentFile
     src_path = document.fichier.path
     nom_fichier = os.path.basename(src_path)
-    dest_relative = f'bibliotheque/{nom_fichier}'
-
     ressource = Ressource(
         titre=document.titre,
         type='memoire',
-        auteur=f"{document.etudiant.prenom or ''} {document.etudiant.nom or ''}".strip() or document.etudiant.email,
+        auteur=(document.etudiant.nom or '').strip() or document.etudiant.email,
         actif=True,
     )
     with open(src_path, 'rb') as f:
@@ -100,16 +89,20 @@ class LancerTestPlagiatView(APIView):
         except Document.DoesNotExist:
             return Response({'error': 'Document introuvable'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Comparer avec documents validés + bibliothèque
-        textes_existants = get_textes_reference(exclude_document_id=document_id)
-
+        textes_existants, titres_existants = get_textes_reference(exclude_document_id=document_id)
         texte_nouveau = extraire_texte_pdf(document.fichier)
-        taux = calculer_taux_plagiat(texte_nouveau, textes_existants)
+        resultat = calculer_taux_plagiat(texte_nouveau, textes_existants, titres_existants)
+        taux = resultat['taux']
 
         document.taux_plagiat = taux
         document.save()
 
-        test = TestPlagiat.objects.create(document=document, taux_plagiat=taux)
+        test = TestPlagiat.objects.create(
+            document=document,
+            taux_plagiat=taux,
+            source_titre=resultat['source_titre'],
+            phrases_suspectes=resultat['phrases_suspectes'],
+        )
 
         Notification.objects.create(
             utilisateur=request.user,
@@ -150,6 +143,7 @@ class LancerTestPlagiatThemeView(APIView):
 
         autres_themes = Theme.objects.filter(statut='valide').exclude(id=theme_id)
         textes_existants = [t.titre + ' ' + t.description for t in autres_themes if t.titre or t.description]
+        titres_existants = [t.titre for t in autres_themes if t.titre or t.description]
 
         ressources_themes = Ressource.objects.filter(actif=True, type='theme')
         for r in ressources_themes:
@@ -161,14 +155,21 @@ class LancerTestPlagiatThemeView(APIView):
             texte_ref = " ".join(blocs).strip()
             if texte_ref:
                 textes_existants.append(texte_ref)
+                titres_existants.append(r.titre)
 
         texte_nouveau = theme.titre + ' ' + theme.description
-        taux = calculer_taux_plagiat(texte_nouveau, textes_existants)
+        resultat = calculer_taux_plagiat(texte_nouveau, textes_existants, titres_existants)
+        taux = resultat['taux']
 
         theme.taux_plagiat = taux
         theme.save()
 
-        test = TestPlagiatTheme.objects.create(theme=theme, taux_plagiat=taux)
+        test = TestPlagiatTheme.objects.create(
+            theme=theme,
+            taux_plagiat=taux,
+            source_titre=resultat['source_titre'],
+            phrases_suspectes=resultat['phrases_suspectes'],
+        )
 
         Notification.objects.create(
             utilisateur=request.user,

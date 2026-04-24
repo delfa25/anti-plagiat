@@ -5,7 +5,9 @@ from decouple import config, Csv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-dev-only-change-me')
-DEBUG = config('DEBUG', default=True, cast=bool)
+# Forcer la lecture depuis .env uniquement, ignorer les variables systeme ambigues
+_debug_raw = config('DEBUG', default='True')
+DEBUG = _debug_raw.lower() in ('true', '1', 'yes', 'on') if isinstance(_debug_raw, str) else bool(_debug_raw)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
 
