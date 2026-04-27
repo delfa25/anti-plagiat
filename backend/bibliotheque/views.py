@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import MultiPartParser
+from django.db import transaction
 from .models import Ressource
 from .serializers import RessourceSerializer
 from parametres.models import Parametre
@@ -62,7 +63,68 @@ class RessourceDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_destroy(self, instance):
         if not ajout_manuel_autorise():
             raise PermissionDenied("La suppression manuelle de la bibliotheque est desactivee.")
+        # Supprimer la ressource liée en même temps
+        liee = instance.ressource_liee
+        if not liee:
+            try:
+                liee = instance.lie_a
+            except Exception:
+                liee = None
         instance.delete()
+        if liee:
+            liee.delete()
+
+
+class AjouterPaireView(APIView):
+    """Crée une paire thème + mémoire liés en une seule opération."""
+    permission_classes = [CanManageBibliotheque]
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        if not ajout_manuel_autorise():
+            return Response({'error': "L'ajout manuel est désactivé."}, status=status.HTTP_403_FORBIDDEN)
+
+        fichier_memoire = request.FILES.get('fichier_memoire')
+        if not fichier_memoire:
+            return Response({'error': 'Le fichier PDF du mémoire est obligatoire.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        titre_theme = request.data.get('titre_theme', '').strip()
+        titre_memoire = request.data.get('titre_memoire', '').strip()
+        if not titre_theme or not titre_memoire:
+            return Response({'error': 'Les titres du thème et du mémoire sont obligatoires.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        auteur = request.data.get('auteur', '').strip() or None
+        annee = request.data.get('annee') or None
+        description = request.data.get('description', '').strip() or None
+
+        with transaction.atomic():
+            theme = Ressource.objects.create(
+                titre=titre_theme,
+                type='theme',
+                auteur=auteur,
+                annee=annee,
+                description=description,
+                ajoute_par=request.user,
+                actif=True,
+            )
+            memoire = Ressource.objects.create(
+                titre=titre_memoire,
+                fichier=fichier_memoire,
+                type='memoire',
+                auteur=auteur,
+                annee=annee,
+                description=description,
+                ajoute_par=request.user,
+                actif=True,
+                ressource_liee=theme,
+            )
+            theme.ressource_liee = memoire
+            theme.save(update_fields=['ressource_liee'])
+
+        return Response({
+            'theme': RessourceSerializer(theme).data,
+            'memoire': RessourceSerializer(memoire).data,
+        }, status=status.HTTP_201_CREATED)
 
 
 class ToggleRessourceView(APIView):

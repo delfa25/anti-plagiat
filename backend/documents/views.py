@@ -2,6 +2,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
+from rest_framework.parsers import MultiPartParser
 from django.shortcuts import get_object_or_404
 from .models import Document
 from .serializers import DocumentSerializer
@@ -28,10 +29,12 @@ class DocumentListCreateView(generics.ListCreateAPIView):
             raise ValidationError(
                 "Vous avez deja un memoire. Modifiez votre soumission existante puis resoumettez-la."
             )
-        theme = serializer.validated_data.get('theme')
-        if theme and theme.statut != 'valide':
-            raise ValidationError("Le theme associe doit etre valide avant de deposer un memoire.")
-        serializer.save(etudiant=self.request.user, statut='brouillon')
+        from themes.models import Theme
+        theme = Theme.objects.filter(etudiant=self.request.user, statut='valide').first()
+        if not theme:
+            raise ValidationError("Vous n'avez pas de theme valide. Faites valider votre theme avant de deposer un memoire.")
+        
+        serializer.save(etudiant=self.request.user, statut='brouillon', theme=theme)
 
 
 class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -90,3 +93,31 @@ class SoumettreDocumentView(APIView):
             )
             return Response({'statut': 'soumis'})
         return Response({'error': 'Impossible de soumettre ce document.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ExtraireInfosDocumentView(APIView):
+    """Extrait les informations d'un PDF pour pré-remplir le formulaire."""
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        fichier = request.FILES.get('fichier')
+        if not fichier:
+            return Response({'error': 'Fichier manquant'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        from bibliotheque.views import ExtraireInfosPdfView
+        from django.http import HttpRequest
+        
+        temp_request = HttpRequest()
+        temp_request.FILES = {'fichier': fichier}
+        temp_request.user = request.user
+        
+        extractor = ExtraireInfosPdfView()
+        try:
+            response = extractor.post(temp_request)
+            if response.status_code == 200:
+                return Response(response.data)
+            else:
+                return Response({'titre': '', 'auteur': '', 'annee': ''})
+        except Exception:
+            return Response({'titre': '', 'auteur': '', 'annee': ''})

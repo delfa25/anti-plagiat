@@ -23,6 +23,13 @@ class Ressource(models.Model):
     )
     date_ajout = models.DateTimeField(auto_now_add=True)
     actif = models.BooleanField(default=True)
+    ressource_liee = models.OneToOneField(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='lie_a'
+    )
 
     def __str__(self):
         return self.titre

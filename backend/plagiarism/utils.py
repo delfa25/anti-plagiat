@@ -2,6 +2,7 @@ import os
 import re
 import tempfile
 import unicodedata
+import nltk
 import PyPDF2
 import pytesseract
 from pdf2image import convert_from_path
@@ -9,12 +10,17 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from nltk.corpus import stopwords
 
-_tesseract_cmd = os.environ.get('TESSERACT_CMD', r'C:\Program Files\Tesseract-OCR\tesseract.exe')
-pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd
+_tesseract_cmd = os.environ.get('TESSERACT_CMD', '') or None
+if _tesseract_cmd:
+    pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd
 
-_poppler_path = os.environ.get('POPPLER_PATH', r'C:\poppler\poppler-25.12.0\Library\bin')
+_poppler_path = os.environ.get('POPPLER_PATH', '') or None
 
-STOPWORDS_FR = list(stopwords.words('french'))
+try:
+    STOPWORDS_FR = list(stopwords.words('french'))
+except LookupError:
+    nltk.download('stopwords', quiet=True)
+    STOPWORDS_FR = list(stopwords.words('french'))
 
 STOPWORDS_METIER = [
     'universite', 'institut', 'burkina', 'faso', 'licence', 'professionnelle',

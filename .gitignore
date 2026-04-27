@@ -1,4 +1,10 @@
 venv/
 node_modules/
 __pycache__/
+*.pyc
+*.pyo
 .env
+*.sqlite3
+media/
+.DS_Store
+*.log

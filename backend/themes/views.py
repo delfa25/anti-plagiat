@@ -38,6 +38,8 @@ class ThemeListCreateView(generics.ListCreateAPIView):
         user = self.request.user
         if user.role == 'etudiant':
             return Theme.objects.filter(etudiant=user)
+        if user.role in ['chef', 'directeur', 'superadmin']:
+            return Theme.objects.filter(statut='soumis')
         return Theme.objects.exclude(statut='brouillon')
 
     def perform_create(self, serializer):
@@ -56,6 +58,8 @@ class ThemeDetailView(generics.RetrieveUpdateDestroyAPIView):
         user = self.request.user
         if user.role == 'etudiant':
             return Theme.objects.filter(etudiant=user)
+        if user.role in ['chef', 'directeur', 'superadmin']:
+            return Theme.objects.filter(statut='soumis')
         return Theme.objects.exclude(statut='brouillon')
 
     def perform_update(self, serializer):
@@ -63,13 +67,11 @@ class ThemeDetailView(generics.RetrieveUpdateDestroyAPIView):
         user = self.request.user
 
         if user.role == 'etudiant':
-            # Etudiant peut modifier brouillon et rejeté uniquement
             if theme.statut not in ('brouillon', 'rejete'):
                 raise PermissionDenied("Vous ne pouvez plus modifier ce thème.")
 
         theme = serializer.save()
 
-        # Notification + ajout auto bibliothèque après validation
         if 'statut' in self.request.data and user.role != 'etudiant':
             statut = self.request.data['statut']
             commentaire = self.request.data.get('commentaire_validation', '')

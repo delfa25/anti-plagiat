@@ -11,10 +11,13 @@ Stack : Django 6 · Django REST Framework · React 19 · PostgreSQL · Docker
 - Détection de plagiat par TF-IDF + similarité cosinus, optimisée pour le français
 - OCR automatique pour les PDFs scannés (Tesseract + pdf2image)
 - Extraction automatique du thème, auteur et année depuis les PDFs importés
+- Pré-remplissage automatique du titre du mémoire à l'upload du PDF
 - Analyse détaillée : source suspectée + passages suspects côte à côte
 - Historique complet des tests de plagiat par document/thème
-- Workflow de validation multi-niveaux : Étudiant → Chef de département → Directeur Adjoint
-- Bibliothèque de ressources de référence (ajout manuel ou automatique après validation)
+- Workflow de validation thèmes : Étudiant → Chef de département
+- Workflow de validation mémoires : Étudiant → Chef de département → Directeur Adjoint
+- Thème validé automatiquement associé au mémoire (pas de sélection manuelle)
+- Bibliothèque de ressources : ajout par paires thème + mémoire liés
 - Paramètres système configurables (seuil de plagiat, règles bibliothèque)
 - Notifications à chaque étape du workflow
 - Gestion des utilisateurs avec rôles et INE auto-généré pour les étudiants
@@ -25,9 +28,9 @@ Stack : Django 6 · Django REST Framework · React 19 · PostgreSQL · Docker
 
 | Rôle | Accès |
 |---|---|
-| `superadmin` | Tout (utilisateurs, paramètres, bibliothèque) |
-| `directeur` | Validation finale, bibliothèque, paramètres |
-| `chef` | Validation intermédiaire, test plagiat |
+| `superadmin` | Tout (utilisateurs, paramètres, bibliothèque, validation thèmes) |
+| `directeur` | Validation finale mémoires, bibliothèque, paramètres |
+| `chef` | Validation thèmes et mémoires (1ère étape), test plagiat |
 | `etudiant` | Dépôt thème/mémoire, test plagiat, soumission |
 
 ---
@@ -145,7 +148,7 @@ sudo apt-get install -y tesseract-ocr tesseract-ocr-fra poppler-utils  # Debian/
 # brew install tesseract poppler  # macOS
 
 # Démarrer PostgreSQL
-docker-compose up db -d
+docker compose up db -d
 
 # Backend
 cd backend
@@ -206,12 +209,14 @@ python manage.py test plagiarism documents themes
 | POST | `/api/plagiarism/lancer-theme/<id>/` | Tester plagiat d'un thème |
 | GET | `/api/plagiarism/themes/` | Historique tests plagiat thèmes |
 | GET/POST | `/api/documents/` | Mémoires |
+| POST | `/api/documents/extraire-infos/` | Extraire titre/auteur/année d'un PDF |
 | POST | `/api/documents/<id>/soumettre/` | Soumettre un mémoire |
 | POST | `/api/plagiarism/lancer/<id>/` | Tester plagiat d'un mémoire |
 | GET | `/api/plagiarism/` | Historique tests plagiat mémoires |
 | GET/PUT | `/api/parametres/` | Paramètres système |
 | GET | `/api/parametres/valeur/<cle>/` | Valeur d'un paramètre |
 | GET/POST | `/api/bibliotheque/` | Bibliothèque de ressources |
+| POST | `/api/bibliotheque/ajouter-paire/` | Ajouter thème + mémoire liés |
 | POST | `/api/bibliotheque/extraire-infos/` | Extraire infos d'un PDF |
 | POST | `/api/bibliotheque/<id>/toggle/` | Activer/désactiver une ressource |
 | GET | `/api/notifications/` | Notifications |
@@ -271,8 +276,8 @@ anti-plagiat/
 
 | Composant | Version |
 |---|---|
-| Python | 3.12+ / 3.14 |
-| Django | 6.x |
+| Python | 3.11+ |
+| Django | 5.x+ |
 | Node.js | 18+ |
 | PostgreSQL | 15 |
-| Docker Compose | v2 |
+| Docker Compose | v2 (`docker compose`) |

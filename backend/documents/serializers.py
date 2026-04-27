@@ -8,4 +8,4 @@ class DocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Document
         fields = ['id', 'titre', 'fichier', 'theme', 'etudiant', 'taux_plagiat', 'statut', 'commentaire_validation', 'date_soumission']
-        read_only_fields = ['taux_plagiat', 'date_soumission']
+        read_only_fields = ['theme', 'taux_plagiat', 'date_soumission']

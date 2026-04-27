@@ -362,21 +362,21 @@ export default function Themes({ currentUser }) {
                   )}
                 </div>
                 <h3 className="text-gray-900 font-semibold text-sm mb-2">{t.titre}</h3>
-                {t.taux_plagiat > 0 && (
+                {testsParTheme[t.id]?.length > 0 && (
                   <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg mb-2 border ${
-                    t.taux_plagiat > seuilPlagiat
+                    testsParTheme[t.id][0].taux_plagiat > seuilPlagiat
                       ? 'bg-red-50 border-red-200 text-red-700'
                       : 'bg-green-50 border-green-200 text-green-700'
                   }`}>
                     <div className="w-3.5 h-3.5">{Icons.shield}</div>
                     <span className="text-xs font-medium">Taux de plagiat :</span>
                     <span className={`text-base font-bold ${
-                      t.taux_plagiat > seuilPlagiat ? 'text-red-600' : 'text-green-600'
-                    }`}>{t.taux_plagiat}%</span>
+                      testsParTheme[t.id][0].taux_plagiat > seuilPlagiat ? 'text-red-600' : 'text-green-600'
+                    }`}>{testsParTheme[t.id][0].taux_plagiat}%</span>
                     <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                      t.taux_plagiat > seuilPlagiat ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'
+                      testsParTheme[t.id][0].taux_plagiat > seuilPlagiat ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'
                     }`}>
-                      {t.taux_plagiat > seuilPlagiat ? '⚠ Au-dessus du seuil' : '✓ Sous le seuil'}
+                      {testsParTheme[t.id][0].taux_plagiat > seuilPlagiat ? '⚠ Au-dessus du seuil' : '✓ Sous le seuil'}
                     </span>
                   </div>
                 )}
@@ -391,7 +391,7 @@ export default function Themes({ currentUser }) {
 
               <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
 
-                {isEtudiant && (t.statut === 'brouillon' || t.statut === 'rejete') && (
+                {isEtudiant && ['brouillon', 'rejete'].includes(t.statut) && (
                   <button onClick={() => handleEdit(t)}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-medium rounded-lg transition border border-sky-100">
                     <div className="w-3.5 h-3.5">{Icons.check}</div>
@@ -407,7 +407,8 @@ export default function Themes({ currentUser }) {
                   </button>
                 )}
 
-                {((isEtudiant && ['brouillon', 'rejete'].includes(t.statut)) || (canValidate && t.statut === 'soumis')) ? (
+                {((isEtudiant && ['brouillon', 'rejete'].includes(t.statut)) ||
+                  (canValidate && t.statut === 'soumis')) && (
                   <button onClick={() => handleTestPlagiat(t.id)} disabled={testLoading === t.id}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-600 text-xs font-medium rounded-lg transition border border-orange-100 disabled:opacity-50">
                     {testLoading === t.id
@@ -416,9 +417,9 @@ export default function Themes({ currentUser }) {
                     }
                     Tester plagiat
                   </button>
-                ) : null}
+                )}
 
-                {isEtudiant && (t.statut === 'brouillon' || t.statut === 'rejete') && (
+                {isEtudiant && ['brouillon', 'rejete'].includes(t.statut) && (
                   <button onClick={() => handleSoumettre(t.id)}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium rounded-lg transition">
                     <div className="w-3.5 h-3.5">{Icons.check}</div>

@@ -74,11 +74,12 @@ function HistoriqueTests({ tests, seuil }) {
 
 export default function Documents({ currentUser }) {
   const [documents, setDocuments] = useState([]);
-  const [themes, setThemes] = useState([]);
+  const [themeValide, setThemeValide] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ titre: '', theme: '', fichier: null });
+  const [form, setForm] = useState({ titre: '', fichier: null });
   const [error, setError] = useState('');
+  const [extracting, setExtracting] = useState(false);
   const [selected, setSelected] = useState(null);
   const [commentaire, setCommentaire] = useState('');
   const [search, setSearch] = useState('');
@@ -122,15 +123,40 @@ export default function Documents({ currentUser }) {
       .catch(() => setSeuilPlagiat(20));
     if (isEtudiant) {
       api.get('/themes/').then(res => {
-        // Themes valides libres + theme deja lie au document en edition
-        const themeCourant = editDoc ? Number(editDoc.theme) : null;
-        const themesValides = res.data.filter(t =>
-          t.statut === 'valide' && (!t.a_document || Number(t.id) === themeCourant)
-        );
-        setThemes(themesValides);
-      });
+        const valide = res.data.find(t => t.statut === 'valide');
+        setThemeValide(valide || null);
+      }).catch(() => {});
     }
-  }, [isEtudiant, editDoc]);
+  }, [isEtudiant]);
+
+  const handleFichierChange = async (e) => {
+    const fichier = e.target.files[0];
+    if (!fichier) {
+      setForm({ ...form, fichier: null });
+      return;
+    }
+    
+    setForm({ ...form, fichier });
+    
+    // Extraire automatiquement le titre du PDF
+    if (isEtudiant && !editDoc) {
+      setExtracting(true);
+      try {
+        const data = new FormData();
+        data.append('fichier', fichier);
+        const res = await api.post('/documents/extraire-infos/', data, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        if (res.data.titre) {
+          setForm(f => ({ ...f, titre: res.data.titre }));
+        }
+      } catch {
+        // Ignorer les erreurs d'extraction
+      } finally {
+        setExtracting(false);
+      }
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -139,11 +165,10 @@ export default function Documents({ currentUser }) {
     try {
       const data = new FormData();
       data.append('titre', form.titre);
-      data.append('theme', form.theme);
       data.append('fichier', form.fichier);
       await api.post('/documents/', data, { headers: { 'Content-Type': 'multipart/form-data' } });
       setShowForm(false);
-      setForm({ titre: '', theme: '', fichier: null });
+      setForm({ titre: '', fichier: null });
       fetchDocuments();
     } catch {
       setError('Erreur lors de la soumission.');
@@ -185,7 +210,7 @@ export default function Documents({ currentUser }) {
 
   const handleEdit = (doc) => {
     setEditDoc(doc);
-    setForm({ titre: doc.titre, theme: doc.theme, fichier: null });
+    setForm({ titre: doc.titre, fichier: null });
     setShowForm(true);
     setError('');
   };
@@ -196,12 +221,11 @@ export default function Documents({ currentUser }) {
     try {
       const data = new FormData();
       data.append('titre', form.titre);
-      data.append('theme', form.theme);
       if (form.fichier) data.append('fichier', form.fichier);
       await api.patch(`/documents/${editDoc.id}/`, data, { headers: { 'Content-Type': 'multipart/form-data' } });
       setShowForm(false);
       setEditDoc(null);
-      setForm({ titre: '', theme: '', fichier: null });
+      setForm({ titre: '', fichier: null });
       fetchDocuments();
     } catch {
       setError('Erreur lors de la modification.');
@@ -265,7 +289,7 @@ export default function Documents({ currentUser }) {
         </div>
         {isEtudiant && canCreateDocument && (
           <button
-            onClick={() => { setShowForm(true); setError(''); setEditDoc(null); setForm({ titre: '', theme: '', fichier: null }); }}
+            onClick={() => { setShowForm(true); setError(''); setEditDoc(null); setForm({ titre: '', fichier: null }); }}
             className="flex items-center gap-2 bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
           >
             <div className="w-4 h-4">{Icons.document}</div>
@@ -304,18 +328,27 @@ export default function Documents({ currentUser }) {
               <input type="text" value={form.titre} onChange={e => setForm({ ...form, titre: e.target.value })}
                 className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
                 placeholder="Titre du mémoire" required />
+              {extracting && (
+                <div className="mt-1 flex items-center gap-2 text-xs text-blue-600">
+                  <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                  Extraction du titre en cours...
+                </div>
+              )}
             </div>
             <div>
-              <label className="block text-gray-600 text-sm font-medium mb-1">Thème associé <span className="text-red-400">*</span></label>
-              <select value={form.theme} onChange={e => setForm({ ...form, theme: e.target.value })}
-                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 transition" required>
-                <option value="">Sélectionner un thème validé</option>
-                {themes.map(t => <option key={t.id} value={t.id}>{t.titre}</option>)}
-              </select>
+              <label className="block text-gray-600 text-sm font-medium mb-1">Thème associé</label>
+              {themeValide
+                ? <div className="w-full bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm text-green-700 font-medium">
+                    ✓ {themeValide.titre}
+                  </div>
+                : <div className="w-full bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-700">
+                    Aucun thème validé. Faites valider votre thème avant de déposer un mémoire.
+                  </div>
+              }
             </div>
             <div>
               <label className="block text-gray-600 text-sm font-medium mb-1">Fichier PDF {!editDoc && <span className="text-red-400">*</span>}{editDoc && <span className="text-gray-400 font-normal">(laisser vide pour garder l'actuel)</span>}</label>
-              <input type="file" accept=".pdf" onChange={e => setForm({ ...form, fichier: e.target.files[0] })}
+              <input type="file" accept=".pdf" onChange={handleFichierChange}
                 className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 transition" />
             </div>
             <div className="flex gap-3 justify-end">
@@ -334,9 +367,9 @@ export default function Documents({ currentUser }) {
               {isChef ? 'Décision du chef de département' : 'Décision du directeur adjoint'}
             </h3>
             <p className="text-gray-500 text-sm mb-3">{selected.titre}</p>
-            {selected.taux_plagiat > 0 && (
-              <div className={`rounded-lg p-3 mb-4 text-sm font-medium ${selected.taux_plagiat > seuilPlagiat ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
-                Taux de plagiat : {selected.taux_plagiat}%
+            {testsParDocument[selected.id]?.length > 0 && (
+              <div className={`rounded-lg p-3 mb-4 text-sm font-medium ${testsParDocument[selected.id][0].taux_plagiat > seuilPlagiat ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
+                Taux de plagiat : {testsParDocument[selected.id][0].taux_plagiat}%
               </div>
             )}
             <div className="mb-4">
@@ -397,21 +430,21 @@ export default function Documents({ currentUser }) {
                   </span>
                 </div>
                 <h3 className="text-gray-900 font-semibold text-sm mb-2">{d.titre}</h3>
-                {d.taux_plagiat > 0 && (
+                {testsParDocument[d.id]?.length > 0 && (
                   <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg mb-2 border ${
-                    d.taux_plagiat > seuilPlagiat
+                    testsParDocument[d.id][0].taux_plagiat > seuilPlagiat
                       ? 'bg-red-50 border-red-200 text-red-700'
                       : 'bg-green-50 border-green-200 text-green-700'
                   }`}>
                     <div className="w-3.5 h-3.5">{Icons.shield}</div>
                     <span className="text-xs font-medium">Taux de plagiat :</span>
                     <span className={`text-base font-bold ${
-                      d.taux_plagiat > seuilPlagiat ? 'text-red-600' : 'text-green-600'
-                    }`}>{d.taux_plagiat}%</span>
+                      testsParDocument[d.id][0].taux_plagiat > seuilPlagiat ? 'text-red-600' : 'text-green-600'
+                    }`}>{testsParDocument[d.id][0].taux_plagiat}%</span>
                     <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                      d.taux_plagiat > seuilPlagiat ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'
+                      testsParDocument[d.id][0].taux_plagiat > seuilPlagiat ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'
                     }`}>
-                      {d.taux_plagiat > seuilPlagiat ? '⚠ Au-dessus du seuil' : '✓ Sous le seuil'}
+                      {testsParDocument[d.id][0].taux_plagiat > seuilPlagiat ? '⚠ Au-dessus du seuil' : '✓ Sous le seuil'}
                     </span>
                   </div>
                 )}
