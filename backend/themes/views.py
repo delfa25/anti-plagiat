@@ -59,7 +59,7 @@ class ThemeDetailView(generics.RetrieveUpdateDestroyAPIView):
         if user.role == 'etudiant':
             return Theme.objects.filter(etudiant=user)
         if user.role in ['chef', 'directeur', 'superadmin']:
-            return Theme.objects.filter(statut='soumis')
+            return Theme.objects.exclude(statut='brouillon')
         return Theme.objects.exclude(statut='brouillon')
 
     def perform_update(self, serializer):
