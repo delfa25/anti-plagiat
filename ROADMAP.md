@@ -158,9 +158,16 @@
 
 > On est ici 👇
 
-**Phases 1 à 9 terminées.** Le projet est fonctionnel, testé et prêt pour le déploiement.
+**Phases 1 à 9 terminées + Phase 10 (UI/UX + notifications ciblées) en cours.**
 
-**Prochaine étape : Phase 10 — Déploiement**
+**Ce qui a été fait en Phase 10 :**
+- Layout 2 colonnes : liste + panneau détail utilisant tout l'espace disponible
+- Zones similaires affichées côte à côte (texte suspect vs source) quand taux > seuil
+- Suggestions de reformulation inline par passage suspect
+- Notifications ciblées : chef/DA alertés à la soumission, étudiant alerté aux résultats
+- Serializers plagiat exposent `source_titre` et `phrases_suspectes`
+
+**Prochaine étape : Phase 10 suite — Suggestions NLP avancées + Phase 11 Déploiement**
 
 ```
 Commandes de démarrage rapide :
