@@ -67,7 +67,18 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
             message = f"Votre mémoire '{document.titre}' : {statut} par {user.email}."
             if commentaire:
                 message += f" Commentaire : {commentaire}"
+            # Notifier l'étudiant du résultat
             Notification.objects.create(utilisateur=document.etudiant, message=message)
+            # Si le chef valide, notifier le directeur adjoint
+            if statut == 'valide_chef':
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                directeurs = User.objects.filter(role__in=['directeur', 'superadmin'])
+                for da in directeurs:
+                    Notification.objects.create(
+                        utilisateur=da,
+                        message=f"Mémoire validé par le chef : '{document.titre}' — En attente de votre validation finale."
+                    )
             # Ajout auto à la bibliothèque si validé définitivement
             if statut == 'valide':
                 ajouter_auto_bibliotheque(document)
@@ -87,10 +98,20 @@ class SoumettreDocumentView(APIView):
         if document.statut in ('brouillon', 'rejete', 'rejete_chef'):
             document.statut = 'soumis'
             document.save()
+            # Notifier l'étudiant
             Notification.objects.create(
                 utilisateur=document.etudiant,
                 message=f"Votre mémoire '{document.titre}' a été soumis avec succès."
             )
+            # Notifier les chefs de département
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            chefs = User.objects.filter(role='chef')
+            for chef in chefs:
+                Notification.objects.create(
+                    utilisateur=chef,
+                    message=f"Nouveau mémoire soumis par {request.user.nom or request.user.email} : '{document.titre}' — En attente de votre validation."
+                )
             return Response({'statut': 'soumis'})
         return Response({'error': 'Impossible de soumettre ce document.'}, status=status.HTTP_400_BAD_REQUEST)
 

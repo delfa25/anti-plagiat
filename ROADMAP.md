@@ -119,7 +119,31 @@
 
 ---
 
-## 🚀 PHASE 10 — Déploiement (À faire)
+## 🚀 PHASE 10 — Améliorations détection & UX avancée (À faire)
+
+### Visualisation zones similaires ✅ Planifié
+- [ ] Affichage des passages suspects côte à côte (document testé vs source) quand taux > seuil
+- [ ] Mise en surbrillance colorée des fragments similaires dans le texte
+- [ ] Score de similarité par passage (rouge ≥70%, orange ≥40%, jaune sinon)
+- [ ] Source suspectée affichée clairement avec son titre
+- [ ] Panneau dépliable « Voir les zones similaires » accessible depuis l'historique des tests
+
+### Suggestions de correction ✅ Planifié
+- [ ] Génération automatique de suggestions de reformulation pour chaque passage suspect
+- [ ] Affichage inline : passage original → suggestion reformulée
+- [ ] Basé sur remplacement de synonymes + restructuration de phrases (NLP)
+- [ ] Bouton « Copier la suggestion » pour faciliter la correction
+- [ ] Indicateur visuel : passages corrigés vs non corrigés
+
+### Refonte UI/UX layout (Terminé)
+- [x] Suppression de `max-w-5xl` — les listes utilisent tout l'espace disponible
+- [x] Layout 2 colonnes : liste à gauche + panneau détail/test à droite
+- [x] Panneau de détail affichant zones similaires, passages suspects, source
+- [x] Notifications ciblées par rôle : chef/DA pour soumissions, étudiant pour résultats
+
+---
+
+## 🚀 PHASE 11 — Déploiement (À faire)
 - [ ] Choisir plateforme (Railway / Render / VPS Linux)
 - [ ] `DEBUG=False` + `ALLOWED_HOSTS` production
 - [ ] `STATIC_ROOT` + `collectstatic`

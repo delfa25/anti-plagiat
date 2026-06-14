@@ -104,14 +104,16 @@ class LancerTestPlagiatView(APIView):
             phrases_suspectes=resultat['phrases_suspectes'],
         )
 
+        # Notifier l'étudiant du résultat
         Notification.objects.create(
-            utilisateur=request.user,
-            message=f"Test plagiat terminé pour '{document.titre}' — Taux : {taux}%"
+            utilisateur=document.etudiant,
+            message=f"Résultat du test plagiat pour votre mémoire '{document.titre}' — Taux : {taux}%"
         )
+        # Si c'est un chef/DA qui lance le test, notifier aussi le lanceur
         if document.etudiant != request.user:
             Notification.objects.create(
-                utilisateur=document.etudiant,
-                message=f"Un test plagiat a été lancé sur votre mémoire '{document.titre}' — Taux : {taux}%"
+                utilisateur=request.user,
+                message=f"Test plagiat terminé pour '{document.titre}' — Taux : {taux}%"
             )
 
         return Response(TestPlagiatSerializer(test).data, status=status.HTTP_201_CREATED)
@@ -171,14 +173,16 @@ class LancerTestPlagiatThemeView(APIView):
             phrases_suspectes=resultat['phrases_suspectes'],
         )
 
+        # Notifier l'étudiant du résultat
         Notification.objects.create(
-            utilisateur=request.user,
-            message=f"Test plagiat terminé pour le thème '{theme.titre}' — Taux : {taux}%"
+            utilisateur=theme.etudiant,
+            message=f"Résultat du test plagiat pour votre thème '{theme.titre}' — Taux : {taux}%"
         )
+        # Si c'est un chef qui lance le test, notifier aussi le lanceur
         if theme.etudiant != request.user:
             Notification.objects.create(
-                utilisateur=theme.etudiant,
-                message=f"Un test plagiat a été lancé sur votre thème '{theme.titre}' — Taux : {taux}%"
+                utilisateur=request.user,
+                message=f"Test plagiat terminé pour le thème '{theme.titre}' — Taux : {taux}%"
             )
 
         return Response(TestPlagiatThemeSerializer(test).data, status=status.HTTP_201_CREATED)

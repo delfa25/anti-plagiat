@@ -97,9 +97,19 @@ class SoumettreThemeView(APIView):
         if theme.statut in ('brouillon', 'rejete'):
             theme.statut = 'soumis'
             theme.save()
+            # Notifier l'étudiant
             Notification.objects.create(
                 utilisateur=request.user,
                 message=f"Votre thème '{theme.titre}' a été soumis avec succès."
             )
+            # Notifier les chefs de département
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            chefs = User.objects.filter(role='chef')
+            for chef in chefs:
+                Notification.objects.create(
+                    utilisateur=chef,
+                    message=f"Nouveau thème soumis par {request.user.nom or request.user.email} : '{theme.titre}' — En attente de validation."
+                )
             return Response({'statut': 'soumis'})
         return Response({'error': 'Impossible de soumettre ce thème.'}, status=status.HTTP_400_BAD_REQUEST)
