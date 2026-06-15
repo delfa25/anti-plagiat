@@ -113,6 +113,20 @@ docker-compose exec backend sh /app/init_db.sh
 
 ### Dev local Windows
 
+#### 1. Installer les dépendances système
+
+**Tesseract OCR** (requis pour les PDFs scannés) :
+- Télécharger l'installeur sur [UB Mannheim Tesseract](https://github.com/UB-Mannheim/tesseract/wiki)
+- Pendant l'installation, cocher **Additional language data** → sélectionner **French**
+- Chemin d'installation par défaut : `C:\Program Files\Tesseract-OCR\tesseract.exe`
+
+**Poppler** (requis pour la conversion PDF → image) :
+- Télécharger la dernière release sur [poppler-windows](https://github.com/oschwartz10612/poppler-windows/releases)
+- Extraire l'archive dans `C:\poppler\`
+- Le chemin à utiliser sera du type : `C:\poppler\poppler-XX.XX.X\Library\bin`
+
+#### 2. Lancer le backend
+
 ```bash
 # Démarrer uniquement PostgreSQL
 docker-compose up db -d
