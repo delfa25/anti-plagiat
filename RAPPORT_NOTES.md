@@ -59,31 +59,53 @@ anti-plagiat/
 
 ## 4. Modèle de données (entités principales)
 
-### User
-- Champs : `email` (identifiant unique), `nom`, `role`, `ine`
+### User (`users.User` — hérite de `AbstractUser`)
+- Champs : `email` (identifiant unique), `nom` (max 200), `role`, `ine`, `is_active`, `is_staff`, `is_superuser`, `date_joined`
+- Champ `username` conservé mais optionnel (rempli automatiquement avec l'email)
 - Rôles : `superadmin`, `directeur`, `chef`, `etudiant`
-- INE auto-généré pour les étudiants : format `N01{année}{compteur:05d}`
-- Authentification par email (USERNAME_FIELD = 'email')
+- INE auto-généré pour les étudiants : format `N01{année}{compteur:05d}` — généré dans `save()`
+- Authentification par email (`USERNAME_FIELD = 'email'`)
+- Propriété `can_manage_users` : vrai pour `superadmin` et `directeur`
+- Manager custom `UserManager` avec `create_user` et `create_superuser`
 
-### Theme
-- Champs : `titre`, `description`, `etudiant (FK)`, `statut`, `taux_plagiat`
+### Theme (`themes.Theme`)
+- Champs : `titre` (max 255), `description` (TextField), `etudiant` (FK User), `statut`, `taux_plagiat` (Float, défaut 0), `valide_par_chef` (Bool), `valide_par_directeur` (Bool), `commentaire_validation`, `date_soumission`
 - Statuts : `brouillon → soumis → valide / rejete`
-- Validation double : `valide_par_chef` + `valide_par_directeur`
+- Relation : `etudiant` FK vers `User` (`related_name='themes'`)
 
-### Document (Mémoire)
-- Champs : `titre`, `fichier (PDF)`, `theme (OneToOne)`, `etudiant (FK)`, `statut`, `taux_plagiat`
-- Statuts : `brouillon → soumis → valide_chef → valide` (avec rejets possibles)
-- Relation OneToOne avec Theme : un thème = au plus un mémoire
+### Document (`documents.Document`) — Mémoire
+- Champs : `titre` (max 255), `fichier` (FileField `upload_to='documents/'`), `theme` (OneToOne vers Theme), `etudiant` (FK User), `taux_plagiat` (Float, défaut 0), `statut`, `commentaire_validation`, `date_soumission`
+- Statuts : `brouillon → soumis → valide_chef → valide` (rejets : `rejete_chef`, `rejete`)
+- Contrainte forte : un thème = au plus un mémoire (OneToOne)
+- Création impossible sans thème validé
 
-### TestPlagiat / TestPlagiatTheme
-- Champs : `taux_plagiat`, `source_titre`, `phrases_suspectes (JSON)`, `date_test`
-- Historique complet des tests par document/thème
+### TestPlagiat (`plagiarism.TestPlagiat`)
+- Champs : `document` (FK Document, `related_name='tests_plagiat'`), `taux_plagiat` (Float), `source_titre` (max 500, nullable), `phrases_suspectes` (JSONField, liste de `{phrase, passage_source, similarite}`), `rapport` (FileField, nullable), `date_test` (auto)
+- Historique complet : plusieurs tests possibles par document
 
-### Parametre
-- Clé/valeur configurable : `seuil_plagiat`, `ajout_auto_bibliotheque`, marqueurs, stopwords, regex
+### TestPlagiatTheme (`plagiarism.TestPlagiatTheme`)
+- Champs : `theme` (FK Theme, `related_name='tests_plagiat'`), `taux_plagiat` (Float), `source_titre` (max 500, nullable), `phrases_suspectes` (JSONField), `date_test` (auto)
+- Corpus comparé : thèmes validés + ressources de type `theme` dans la bibliothèque
 
-### Ressource (Bibliothèque)
-- Champs : `titre`, `fichier`, `type` (mémoire/thème), `auteur`, `annee`, `actif`
+### Validation (`validation.Validation`)
+- Champs : `document` (FK Document), `validateur` (FK User), `statut` (`valide` / `rejete`), `commentaire`, `date_validation` (auto)
+- Historique des décisions de validation sur les mémoires
+
+### Notification (`notifications.Notification`)
+- Champs : `utilisateur` (FK User, `related_name='notifications'`), `message` (TextField), `lu` (Bool, défaut False), `date` (auto)
+- Envoi ciblé par rôle :
+  - Étudiant : résultat test plagiat, décision validation, confirmation soumission
+  - Chef : nouveau thème soumis, nouveau mémoire soumis
+  - Directeur Adjoint : mémoire validé par le chef (en attente validation finale)
+
+### Parametre (`parametres.Parametre`)
+- Champs : `cle` (max 100, unique), `valeur` (max 255), `description` (TextField)
+- Clés prédéfinies : `seuil_plagiat` (défaut 20), `ajout_auto_bibliotheque`, `ajout_manuel_bibliotheque`, `plagiat_marqueurs_debut`, `plagiat_marqueurs_fin`, `plagiat_bloc_debut`, `plagiat_bloc_fin`, `plagiat_stopwords_metier`, `plagiat_regex_exclusion_custom`
+
+### Ressource (`bibliotheque.Ressource`)
+- Champs : `titre` (max 255), `fichier` (FileField `upload_to='bibliotheque/'`, nullable), `type` (`theme` / `memoire`), `auteur` (max 255, nullable), `annee` (Integer, nullable), `description` (nullable), `ajoute_par` (FK User, SET_NULL), `date_ajout` (auto), `actif` (Bool, défaut True), `ressource_liee` (OneToOne vers self, nullable)
+- Liaison possible entre une ressource thème et une ressource mémoire (paire liée)
+- Seules les ressources `actif=True` sont incluses dans le corpus plagiat
 
 ---
 
@@ -243,3 +265,76 @@ python manage.py test plagiarism documents themes
 | 8 | Tests automatisés | ✅ Terminée |
 | 9 | Améliorations UX | ✅ Terminée |
 | 10 | Déploiement production | 🔲 À faire |
+
+---
+
+## 13. Diagrammes UML (voir DIAGRAMMES.md)
+
+### Diagramme de classes — 9 classes
+
+| Classe | App | Relations principales |
+|---|---|---|
+| `User` | `users` | hérite `AbstractUser` — source de toutes les FK |
+| `Theme` | `themes` | FK `User` (etudiant) |
+| `Document` | `documents` | OneToOne `Theme`, FK `User` (etudiant) |
+| `TestPlagiat` | `plagiarism` | FK `Document` |
+| `TestPlagiatTheme` | `plagiarism` | FK `Theme` |
+| `Validation` | `validation` | FK `Document`, FK `User` (validateur) |
+| `Notification` | `notifications` | FK `User` (utilisateur) |
+| `Ressource` | `bibliotheque` | FK `User` (ajoute_par), OneToOne vers self (ressource_liee) |
+| `Parametre` | `parametres` | aucune FK |
+
+### Cas d'utilisation — 22 UC répartis par rôle
+
+| Rôle | Cas d'utilisation |
+|---|---|
+| **Étudiant** | Se connecter, consulter profil, créer/modifier/soumettre/tester thème, déposer/modifier/soumettre/tester mémoire, voir zones similaires et suggestions, consulter bibliothèque, consulter notifications |
+| **Chef** | Se connecter, tester plagiat thème, valider/rejeter thème, tester plagiat mémoire, valider/rejeter mémoire (1ère étape), voir zones similaires, consulter bibliothèque, consulter notifications |
+| **Directeur Adjoint** | Se connecter, valider/rejeter mémoire (finale), CRUD bibliothèque, ajouter paire thème+mémoire, activer/désactiver ressource, extraire infos PDF, configurer paramètres, consulter notifications |
+| **Super Admin** | Se connecter, gérer utilisateurs (CRUD), configurer paramètres, CRUD bibliothèque, ajouter paires, activer/désactiver ressource, extraire infos PDF, consulter notifications |
+
+### Diagrammes d'activités — 3 processus
+
+**1. Processus complet soumission mémoire**
+```
+Créer thème → Tester plagiat thème → Soumettre thème
+  → [Notification chefs] → Chef valide/rejette
+  → Déposer mémoire PDF (extraction titre auto)
+  → Tester plagiat mémoire → [Notification étudiant]
+  → Si taux > seuil : afficher zones similaires + suggestions → Réviser
+  → Soumettre mémoire → [Notification chefs]
+  → Chef valide/rejette → [Notification DA + étudiant]
+  → DA valide/rejette → [Notification étudiant]
+  → Si validé + ajout_auto=true : copie PDF → Bibliothèque
+```
+
+**2. Moteur de détection de plagiat**
+```
+Réception PDF → PyPDF2 extraction
+  → Si vide : OCR Tesseract (langue fra)
+  → Nettoyage : troncature zone utile + suppression bloc IBAM + bruit structurel
+  → TF-IDF vectorisation (ngram 1-2, stopwords FR + métier)
+  → Similarité cosinus vs corpus (documents validés + bibliothèque actifs)
+  → Identification source principale
+  → Si taux > seuil : extraction top 5 passages suspects + correspondance source
+  → Retourne {taux, source_titre, phrases_suspectes}
+```
+
+**3. Gestion de la bibliothèque**
+```
+Ajout manuel :
+  Upload PDF → Extraction auto (titre, auteur, année) → Pré-remplissage
+  → Ressource seule OU paire thème+mémoire liés (transaction atomique)
+
+Ajout automatique (post-validation mémoire) :
+  ajout_auto=true ? → Ressource existante ? → Copie PDF → Ressource type=memoire
+
+Ajout automatique (post-validation thème) :
+  ajout_auto=true ? → Ressource existante ? → Ressource type=theme (sans fichier)
+```
+
+### Diagrammes de séquence — 3 flux
+
+- **Dépôt et test plagiat** : extraction titre PDF → création document → test plagiat (TF-IDF) → notification étudiant → affichage résultat + zones similaires
+- **Workflow validation mémoire** : soumission → notification chefs → chef décide → notification DA → DA décide → notification étudiant → ajout bibliothèque si auto
+- **Authentification JWT** : login → access 2h + refresh 7j → intercepteur axios auto-refresh → logout si refresh expiré
